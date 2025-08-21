@@ -155,24 +155,49 @@ function IntField({ value, onChange }) {
 /*                                Calculations                                */
 /* -------------------------------------------------------------------------- */
 
-
-// Mortgage schedule (rounded to cents so stacks equal total)
+// Mortgage schedule - Fixed to handle zero interest rate
 function buildMortgageSchedule({ principal = 800_000, rate = 0.06, years = 30 }) {
   const m = 12;
   const n = years * m;
   const i = rate / m;
-  const pmt = round2((i * principal) / (1 - Math.pow(1 + i, -n)));
+  
+  let pmt;
+  
+  // Handle zero interest rate case
+  if (rate === 0 || i === 0) {
+    pmt = round2(principal / n); // Simple division when no interest
+  } else {
+    pmt = round2((i * principal) / (1 - Math.pow(1 + i, -n)));
+  }
 
   let bal = principal;
   const rows = [];
+  
   for (let t = 1; t <= n; t++) {
-    let interest = round2(bal * i);
-    let principalPaid = round2(pmt - interest);
-    if (t === n) {
-      principalPaid = round2(bal);
-      interest = round2(pmt - principalPaid);
+    let interest, principalPaid;
+    
+    if (rate === 0 || i === 0) {
+      // Zero interest case
+      interest = 0;
+      principalPaid = round2(pmt);
+      
+      // Handle final payment to ensure balance goes to exactly zero
+      if (t === n) {
+        principalPaid = round2(bal);
+      }
+    } else {
+      // Normal interest case
+      interest = round2(bal * i);
+      principalPaid = round2(pmt - interest);
+      
+      if (t === n) {
+        principalPaid = round2(bal);
+        interest = round2(pmt - principalPaid);
+      }
     }
+    
     bal = round2(bal - principalPaid);
+    
     rows.push({
       month: t,
       interest,
@@ -181,23 +206,20 @@ function buildMortgageSchedule({ principal = 800_000, rate = 0.06, years = 30 })
       balance: Math.max(bal, 0),
     });
   }
+  
   return { rows, pmt };
 }
-
-
 
 /* -------------------------------------------------------------------------- */
 /*                                   App                                      */
 /* -------------------------------------------------------------------------- */
 
 export default function App() {
-
   // Mortgage state
   const [mortgageAmt, setMortgageAmt] = useState(800000);
   const [mortgageRate, setMortgageRate] = useState(0.06);
   const [mortgageYears, setMortgageYears] = useState(30);
   const mortgage = useMemo(() => buildMortgageSchedule({ principal: mortgageAmt, rate: mortgageRate, years: mortgageYears }), [mortgageAmt, mortgageRate, mortgageYears]);
-
 
   // Mortgage x-axis ticks at whole years
   const mortgageChart = useMemo(() => mortgage.rows, [mortgage]);
@@ -208,65 +230,67 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-
-
       {/* Content */}
       <main className="max-w-6xl mx-auto px-6 py-8 space-y-8">
-        
-   
-
-        {/* 2) Mortgage */}
+        {/* Mortgage */}
         <Card title="Mortgage Amortization (Level Payment)">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div>
               <h3 className="font-georgia text-cfa-blue mb-2">Inputs</h3>
               <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
                 <InlineRow label="Mortgage Amount"><CurrencyField value={mortgageAmt} onChange={setMortgageAmt} /></InlineRow>
-                <InlineRow label="Annual Rate"><PercentField value={mortgageRate} onChange={setMortgageRate} /></InlineRow>
+                <InlineRow label="Annual Interest Rate"><PercentField value={mortgageRate} onChange={setMortgageRate} /></InlineRow>
                 <InlineRow label="Term (years)"><IntField value={mortgageYears} onChange={setMortgageYears} /></InlineRow>
                 <div className="h-px bg-gray-200 my-3" />
                 <p className="text-sm font-arial text-gray-700">
                   <strong>Level Payment:</strong> {fmtUSD(mortgage.pmt)} <span className="text-gray-500">/ month</span>
                 </p>
+                {mortgageRate === 0 && (
+                  <p className="text-xs text-amber-600 mt-1 font-arial">
+                    Zero interest: Payment is principal ÷ {mortgageYears * 12} months
+                  </p>
+                )}
               </div>
             </div>
 
             <div className="lg:col-span-2">
               <div className="rounded-xl border border-gray-200 bg-white p-3">
                 <div style={{ height: 340 }}>
-<ResponsiveContainer width="100%" height="100%">
-  <BarChart data={mortgageChart} margin={CHART_MARGINS}>
-    <CartesianGrid strokeDasharray="3 3" />
-
-    <XAxis
-      dataKey="month"
-      type="number"
-      domain={[1, mortgageChart.length]}
-      ticks={mortgageTicks}
-      tickFormatter={(m) => (m / 12).toFixed(0)}
-      tickMargin={8}                                   // extra space under ticks
-      label={{ value: "Years", position: "insideBottom", offset: -20 }}
-    />
-
-    <YAxis tickFormatter={fmtUSD} width={80} />        // reserve label width
-
-    <Tooltip formatter={(v) => fmtUSD(v)} contentStyle={{ borderRadius: 12, borderColor: "#e5e7eb" }} />
-
-    <Legend verticalAlign="top" align="right" height={36} wrapperStyle={{ paddingBottom: 6 }} />
-
-    <Bar dataKey="principal" name="Principal Amortization" stackId="pmt" fill={CFA.dark}    radius={[3,3,0,0]} />
-    <Bar dataKey="interest"  name="Interest Cash Flows"   stackId="pmt" fill={CFA.primary} radius={[3,3,0,0]} />
-  </BarChart>
-</ResponsiveContainer>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={mortgageChart} margin={CHART_MARGINS}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis
+                        dataKey="month"
+                        type="number"
+                        domain={[1, mortgageChart.length]}
+                        ticks={mortgageTicks}
+                        tickFormatter={(m) => (m / 12).toFixed(0)}
+                        tickMargin={8}
+                        label={{ value: "Years", position: "insideBottom", offset: -20 }}
+                      />
+                      <YAxis tickFormatter={fmtUSD} width={80} />
+                      <Tooltip 
+                        formatter={(v, name, props) => {
+                          if (props.dataKey === 'interest') {
+                            return [fmtUSD(v), 'Interest Cash Flows'];
+                          } else if (props.dataKey === 'principal') {
+                            return [fmtUSD(v), 'Principal Amortization'];
+                          }
+                          return [fmtUSD(v), name];
+                        }}
+                        contentStyle={{ borderRadius: 12, borderColor: "#e5e7eb" }} 
+                      />
+                      <Legend verticalAlign="top" align="right" height={36} wrapperStyle={{ paddingBottom: 6 }} />
+                      <Bar dataKey="interest" name="Interest Cash Flows" stackId="pmt" fill={CFA.primary} radius={[0,0,3,3]} />
+                      <Bar dataKey="principal" name="Principal Amortization" stackId="pmt" fill={CFA.dark} radius={[3,3,0,0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
-                <p className="text-xs text-gray-600 mt-2 font-arial">X-axis spans the full mortgage term. Bars show constant payment split into principal and interest.</p>
+                <p className="text-xs text-gray-600 mt-2 font-arial">X-axis spans the full mortgage term. Bars show payment split into principal and interest.</p>
               </div>
             </div>
           </div>
         </Card>
-
-
       </main>
     </div>
   );
