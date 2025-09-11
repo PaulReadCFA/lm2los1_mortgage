@@ -313,13 +313,6 @@ export default function CleanMortgageCalculator() {
           <p className={`text-lg ${TYPOGRAPHY.body} mb-4`}>
             Analyze how mortgage payments are split between principal and interest over the loan term.
           </p>
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h3 className={`font-semibold ${TYPOGRAPHY.body} mb-2`}>Learning Objective:</h3>
-            <p className={TYPOGRAPHY.caption}>
-              Understand amortization schedules and how level payments are allocated between 
-              interest and principal reduction. Formula: <strong>PMT = P × [r(1+r)ⁿ] ÷ [(1+r)ⁿ - 1]</strong>
-            </p>
-          </div>
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -435,7 +428,7 @@ export default function CleanMortgageCalculator() {
               ) : null}
             </Card>
 
-            <Card title="Annual Payment Breakdown">
+            <Card title="Mortgage Cash Flows">
               {mortgage && chartData.length > 0 ? (
                 <div>
                   <div className="flex flex-wrap gap-4 mb-4 text-sm">
