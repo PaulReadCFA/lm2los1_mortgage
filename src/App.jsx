@@ -26,6 +26,9 @@ const TYPOGRAPHY = {
   label: "font-sans text-sm font-medium text-gray-700"
 };
 
+// Default values for easy reset
+const DEFAULT_INPUTS = { principal: 800000, rate: 0.06, years: 30 };
+
 // =========================
 // Reusable UI
 // =========================
@@ -259,8 +262,8 @@ const CustomTooltip = ({ active, payload, isMonthly }) => {
 // =========================
 // Main Component
 // =========================
-export default function CleanMortgageCalculator() {
-  const [inputs, setInputs] = useState({ principal: 800000, rate: 0.06, years: 30 });
+export default function EnhancedMortgageCalculator() {
+  const [inputs, setInputs] = useState(DEFAULT_INPUTS);
   const [view, setView] = useState("monthly"); // "monthly" | "annual"
 
   // Track Brush range so we can adapt tick density and avoid label collisions
@@ -302,7 +305,7 @@ export default function CleanMortgageCalculator() {
       const m = i + 1; // month number (1-based)
       if (m % step === 0) ticks.push(`M${m}`);
     }
-    // Optionally include the final label only if it's not already aligned and won’t crowd the last tick
+    // Optionally include the final label only if it's not already aligned and won't crowd the last tick
     const lastMonth = end + 1;
     const lastTickVal = ticks.length ? parseInt(ticks[ticks.length - 1].slice(1), 10) : -Infinity;
     if (lastMonth % step !== 0 && lastMonth - lastTickVal >= Math.ceil(step / 2)) {
@@ -348,35 +351,43 @@ export default function CleanMortgageCalculator() {
   const updateInput = useCallback((field, value) => {
     setInputs((prev) => ({ ...prev, [field]: value }));
   }, []);
-// Keep brush range within bounds if term changes
-useEffect(() => {
-  const maxIdx = Math.max(0, chartDataMonthly.length - 1);
-  setBrushRange((r) => ({
-    startIndex: Math.min(r.startIndex ?? 0, maxIdx),
-    endIndex: Math.min(r.endIndex ?? maxIdx, maxIdx),
-  }));
-}, [chartDataMonthly.length]);
 
-// Accessible controls mirroring the Brush (keyboard & SR friendly)
-const setStartMonth = useCallback((m) => {
-  const maxMonth = Math.max(1, chartDataMonthly.length);
-  const clamped = Math.max(1, Math.min(m || 1, maxMonth));
-  setBrushRange((r) => {
-    const end = Math.max(r.endIndex ?? 0, 0);
-    const startIdx = Math.min(clamped - 1, end); // never beyond end
-    return { startIndex: startIdx, endIndex: end };
-  });
-}, [chartDataMonthly.length]);
+  // Reset to defaults function
+  const resetToDefaults = useCallback(() => {
+    setInputs(DEFAULT_INPUTS);
+    setView("monthly");
+    setBrushRange({ startIndex: 0, endIndex: 120 });
+  }, []);
 
-const setEndMonth = useCallback((m) => {
-  const maxMonth = Math.max(1, chartDataMonthly.length);
-  const clamped = Math.max(1, Math.min(m || 1, maxMonth));
-  setBrushRange((r) => {
-    const start = Math.max(r.startIndex ?? 0, 0);
-    const endIdx = Math.max(clamped - 1, start); // never before start
-    return { startIndex: start, endIndex: endIdx };
-  });
-}, [chartDataMonthly.length]);
+  // Keep brush range within bounds if term changes
+  useEffect(() => {
+    const maxIdx = Math.max(0, chartDataMonthly.length - 1);
+    setBrushRange((r) => ({
+      startIndex: Math.min(r.startIndex ?? 0, maxIdx),
+      endIndex: Math.min(r.endIndex ?? maxIdx, maxIdx),
+    }));
+  }, [chartDataMonthly.length]);
+
+  // Accessible controls mirroring the Brush (keyboard & SR friendly)
+  const setStartMonth = useCallback((m) => {
+    const maxMonth = Math.max(1, chartDataMonthly.length);
+    const clamped = Math.max(1, Math.min(m || 1, maxMonth));
+    setBrushRange((r) => {
+      const end = Math.max(r.endIndex ?? 0, 0);
+      const startIdx = Math.min(clamped - 1, end); // never beyond end
+      return { startIndex: startIdx, endIndex: end };
+    });
+  }, [chartDataMonthly.length]);
+
+  const setEndMonth = useCallback((m) => {
+    const maxMonth = Math.max(1, chartDataMonthly.length);
+    const clamped = Math.max(1, Math.min(m || 1, maxMonth));
+    setBrushRange((r) => {
+      const start = Math.max(r.startIndex ?? 0, 0);
+      const endIdx = Math.max(clamped - 1, start); // never before start
+      return { startIndex: start, endIndex: endIdx };
+    });
+  }, [chartDataMonthly.length]);
 
   const formatCurrency = (amount) =>
     new Intl.NumberFormat("en-US", {
@@ -423,8 +434,6 @@ const setEndMonth = useCallback((m) => {
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-
-
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Inputs */}
           <Card title="Mortgage Parameters" className="lg:col-span-1">
@@ -440,7 +449,7 @@ const setEndMonth = useCallback((m) => {
                 />
               </FormField>
 
-              <FormField id="rate" label="Annual Interest Rate" error={validationErrors.rate} helpText="Yearly interest rate (e.g., 6% = 0.06)" required>
+              <FormField id="rate" label="Annual Interest Rate" error={validationErrors.rate} helpText="Enter as percentage (e.g., enter 6 for 6%)" required>
                 <NumericInput
                   value={inputs.rate * 100}
                   onChange={(v) => updateInput("rate", v / 100)}
@@ -462,6 +471,20 @@ const setEndMonth = useCallback((m) => {
                   hideSteppers
                 />
               </FormField>
+
+              {/* Reset Button */}
+              <div className="pt-4 border-t border-gray-200">
+                <button
+                  onClick={resetToDefaults}
+                  className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 focus:bg-gray-200 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+                  aria-describedby="reset-help"
+                >
+                  Reset to Defaults
+                </button>
+                <p id="reset-help" className={`${TYPOGRAPHY.caption} text-gray-500 mt-1`}>
+                  Resets to: $800K loan, 6% rate, 30 years
+                </p>
+              </div>
             </div>
 
             <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
@@ -529,7 +552,42 @@ const setEndMonth = useCallback((m) => {
                     </div>
                   </div>
 
-                  <div className="h-96 w-full">
+                  {/* Screen reader data table */}
+                  <div className="sr-only">
+                    <table>
+                      <caption>Mortgage payment breakdown by {view === "monthly" ? "month" : "year"} showing first 10 periods</caption>
+                      <thead>
+                        <tr>
+                          <th scope="col">{view === "monthly" ? "Month" : "Year"}</th>
+                          <th scope="col" className="text-right">Interest Payment</th>
+                          <th scope="col" className="text-right">Principal Payment</th>
+                          <th scope="col" className="text-right">Remaining Balance</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {chartData.slice(0, 10).map(row => (
+                          <tr key={row.month || row.year}>
+                            <th scope="row">{view === "monthly" ? `Month ${row.month}` : `Year ${row.year}`}</th>
+                            <td className="text-right">${row.interestPayment.toFixed(2)}</td>
+                            <td className="text-right">${row.principalPayment.toFixed(2)}</td>
+                            <td className="text-right">${row.remainingBalance.toFixed(2)}</td>
+                          </tr>
+                        ))}
+                        {chartData.length > 10 && (
+                          <tr><td colSpan="4" className="text-center">... and {chartData.length - 10} more {view === "monthly" ? "months" : "years"}</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="h-96 w-full" role="img" aria-labelledby="chart-title" aria-describedby="chart-description">
+                    <div className="sr-only">
+                      <h3 id="chart-title">Mortgage Payment Composition Chart</h3>
+                      <p id="chart-description">
+                        Stacked bar chart showing the breakdown of {view === "monthly" ? "monthly" : "annual"} payments 
+                        between interest and principal. Early payments are mostly interest, with principal portion increasing over time.
+                      </p>
+                    </div>
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={chartData} margin={{ top: 20, right: 54, left: 20, bottom: 100 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke={COLORS.chart.grid} />
@@ -565,38 +623,39 @@ const setEndMonth = useCallback((m) => {
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
-{/* Accessible controls mirroring the Brush */}
-{view === "monthly" && (
-  <div role="group" aria-label="Select visible month range" className="mt-3 flex flex-wrap items-end gap-4">
-    <div className="flex items-center gap-2">
-      <label htmlFor="start-month" className={`${TYPOGRAPHY.caption}`}>Start month</label>
-      <NumericInput
-        value={Math.min(brushRange.startIndex + 1, Math.max(1, chartDataMonthly.length))}
-        onChange={setStartMonth}
-        min={1}
-        max={Math.max(1, chartDataMonthly.length)}
-        step={1}
-        hideSteppers
-        placeholder="1"
-      />
-    </div>
-    <div className="flex items-center gap-2">
-      <label htmlFor="end-month" className={`${TYPOGRAPHY.caption}`}>End month</label>
-      <NumericInput
-        value={Math.min(brushRange.endIndex + 1, Math.max(1, chartDataMonthly.length))}
-        onChange={setEndMonth}
-        min={1}
-        max={Math.max(1, chartDataMonthly.length)}
-        step={1}
-        hideSteppers
-        placeholder="120"
-      />
-    </div>
-    <div aria-live="polite" className={`${TYPOGRAPHY.caption} text-gray-600`}>
-      Showing M{Math.min(brushRange.startIndex + 1, Math.max(1, chartDataMonthly.length))}–M{Math.min(brushRange.endIndex + 1, Math.max(1, chartDataMonthly.length))}
-    </div>
-  </div>
-)}
+
+                  {/* Accessible controls mirroring the Brush */}
+                  {view === "monthly" && (
+                    <div role="group" aria-label="Select visible month range" className="mt-3 flex flex-wrap items-end gap-4">
+                      <div className="flex items-center gap-2">
+                        <label htmlFor="start-month" className={`${TYPOGRAPHY.caption}`}>Start month</label>
+                        <NumericInput
+                          value={Math.min(brushRange.startIndex + 1, Math.max(1, chartDataMonthly.length))}
+                          onChange={setStartMonth}
+                          min={1}
+                          max={Math.max(1, chartDataMonthly.length)}
+                          step={1}
+                          hideSteppers
+                          placeholder="1"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <label htmlFor="end-month" className={`${TYPOGRAPHY.caption}`}>End month</label>
+                        <NumericInput
+                          value={Math.min(brushRange.endIndex + 1, Math.max(1, chartDataMonthly.length))}
+                          onChange={setEndMonth}
+                          min={1}
+                          max={Math.max(1, chartDataMonthly.length)}
+                          step={1}
+                          hideSteppers
+                          placeholder="120"
+                        />
+                      </div>
+                      <div aria-live="polite" className={`${TYPOGRAPHY.caption} text-gray-600`}>
+                        Showing M{Math.min(brushRange.startIndex + 1, Math.max(1, chartDataMonthly.length))}–M{Math.min(brushRange.endIndex + 1, Math.max(1, chartDataMonthly.length))}
+                      </div>
+                    </div>
+                  )}
 
                   <p className={`${TYPOGRAPHY.caption} mt-4 text-center`}>
                     {view === "monthly" ? (
@@ -612,10 +671,6 @@ const setEndMonth = useCallback((m) => {
                 </div>
               )}
             </Card>
-
-
-
-
           </div>
         </div>
       </div>
