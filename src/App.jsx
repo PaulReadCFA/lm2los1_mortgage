@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from "react";
+import React, { useMemo, useState, useCallback, useEffect } from "react";
 import {
   ResponsiveContainer,
   BarChart,
@@ -7,10 +7,12 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
+  Brush
 } from "recharts";
 
-// Design system constants
+// =========================
+// CFA Institute brand tokens
+// =========================
 const COLORS = {
   cfa: { primary: "#4476FF", dark: "#06005A", light: "#E8F0FF" },
   semantic: { positive: "#10B981", negative: "#EF4444", neutral: "#6B7280" },
@@ -24,96 +26,9 @@ const TYPOGRAPHY = {
   label: "font-sans text-sm font-medium text-gray-700"
 };
 
-// Form Field Component
-const FormField = ({ id, label, children, error, helpText, required = false }) => {
-  const errorId = error ? `${id}-error` : undefined;
-  const helpId = helpText ? `${id}-help` : undefined;
-  const describedBy = [errorId, helpId].filter(Boolean).join(' ');
-
-  return (
-    <div className="space-y-1">
-      <label 
-        htmlFor={id}
-        className={`block ${TYPOGRAPHY.label} ${required ? "after:content-['*'] after:text-red-500 after:ml-1" : ""}`}
-      >
-        {label}
-      </label>
-      {React.cloneElement(children, {
-        id,
-        'aria-describedby': describedBy || undefined,
-        'aria-invalid': error ? 'true' : 'false'
-      })}
-      {helpText && (
-        <p id={helpId} className={`${TYPOGRAPHY.caption} text-gray-500`}>
-          {helpText}
-        </p>
-      )}
-      {error && (
-        <p id={errorId} className={`${TYPOGRAPHY.caption} text-red-600`} role="alert">
-          {error}
-        </p>
-      )}
-    </div>
-  );
-};
-
-// Numeric Input Component
-const NumericInput = ({ value, onChange, min, max, step = 0.01, prefix = "", suffix = "", placeholder = "0.00" }) => {
-  const [displayValue, setDisplayValue] = useState(
-    value !== undefined && value !== null ? value.toFixed(step >= 1 ? 0 : 2) : ""
-  );
-
-  const handleChange = useCallback((e) => {
-    const newValue = e.target.value;
-    setDisplayValue(newValue);
-    
-    const numericValue = parseFloat(newValue);
-    if (!isNaN(numericValue)) {
-      const constrainedValue = Math.min(Math.max(numericValue, min || 0), max || Infinity);
-      onChange?.(constrainedValue);
-    }
-  }, [onChange, min, max]);
-
-  const handleBlur = useCallback((e) => {
-    const numericValue = parseFloat(e.target.value);
-    if (!isNaN(numericValue)) {
-      const constrainedValue = Math.min(Math.max(numericValue, min || 0), max || Infinity);
-      setDisplayValue(constrainedValue.toFixed(step >= 1 ? 0 : 2));
-      onChange?.(constrainedValue);
-    } else {
-      setDisplayValue(step >= 1 ? "0" : "0.00");
-      onChange?.(0);
-    }
-  }, [onChange, min, max, step]);
-
-  return (
-    <div className="relative">
-      {prefix && (
-        <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 pointer-events-none">
-          {prefix}
-        </span>
-      )}
-      <input
-        type="number"
-        value={displayValue}
-        onChange={handleChange}
-        onBlur={handleBlur}
-        min={min}
-        max={max}
-        step={step}
-        placeholder={placeholder}
-        className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${prefix ? "pl-8" : ""} ${suffix ? "pr-8" : ""}`}
-      />
-      {suffix && (
-        <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 pointer-events-none">
-          {suffix}
-        </span>
-      )}
-    </div>
-  );
-};
-
-// Card Component
+// =========================
+// Reusable UI
+// =========================
 const Card = ({ title, children, className = "" }) => (
   <section className={`bg-white rounded-2xl shadow-lg border border-gray-200 ${className}`}>
     {title && (
@@ -125,74 +40,174 @@ const Card = ({ title, children, className = "" }) => (
   </section>
 );
 
-// Validation function
+const FormField = ({ id, label, children, error, helpText, required = false }) => {
+  const errorId = error ? `${id}-error` : undefined;
+  const helpId = helpText ? `${id}-help` : undefined;
+  const describedBy = [errorId, helpId].filter(Boolean).join(" ");
+
+  return (
+    <div className="space-y-1">
+      <label htmlFor={id} className={`block ${TYPOGRAPHY.label} ${required ? "after:content-['*'] after:text-red-500 after:ml-1" : ""}`}>
+        {label}
+      </label>
+      {React.cloneElement(children, {
+        id,
+        "aria-describedby": describedBy || undefined,
+        "aria-invalid": error ? "true" : "false"
+      })}
+      {helpText && (
+        <p id={helpId} className={`${TYPOGRAPHY.caption} text-gray-500`}>{helpText}</p>
+      )}
+      {error && (
+        <p id={errorId} className={`${TYPOGRAPHY.caption} text-red-600`} role="alert">{error}</p>
+      )}
+    </div>
+  );
+};
+
+// Numeric input that safely handles absent onChange and allows optional hiding of native steppers.
+const NumericInput = ({
+  value,
+  onChange = () => {}, // safe default prevents runtime errors
+  min,
+  max,
+  step = 0.01,
+  prefix = "",
+  suffix = "",
+  placeholder = "0.00",
+  hideSteppers = false
+}) => {
+  const toStr = (val) =>
+    val !== undefined && val !== null && !Number.isNaN(val)
+      ? Number(val).toFixed(step >= 1 ? 0 : 2)
+      : "";
+
+  const [displayValue, setDisplayValue] = useState(toStr(value));
+
+  // Keep internal display string in sync with parent value updates
+  useEffect(() => {
+    setDisplayValue(toStr(value));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, step]);
+
+  const clamp = useCallback(
+    (num) => Math.min(Math.max(num, min ?? -Infinity), max ?? Infinity),
+    [min, max]
+  );
+
+  const handleChange = useCallback(
+    (e) => {
+      const newValue = e.target.value;
+      setDisplayValue(newValue);
+      const numericValue = parseFloat(newValue);
+      if (!Number.isNaN(numericValue)) {
+        onChange(clamp(numericValue));
+      }
+    },
+    [onChange, clamp]
+  );
+
+  const handleBlur = useCallback(
+    (e) => {
+      const numericValue = parseFloat(e.target.value);
+      if (!Number.isNaN(numericValue)) {
+        const c = clamp(numericValue);
+        setDisplayValue(Number(c).toFixed(step >= 1 ? 0 : 2));
+        onChange(c);
+      } else {
+        setDisplayValue(step >= 1 ? "0" : "0.00");
+        onChange(0);
+      }
+    },
+    [onChange, clamp, step]
+  );
+
+  return (
+    <div className="relative">
+      {prefix && (
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none">{prefix}</span>
+      )}
+      <input
+        type={hideSteppers ? "text" : "number"}
+        inputMode="decimal"
+        pattern={hideSteppers ? "[0-9]*([\\.][0-9]+)?" : undefined}
+        value={displayValue}
+        onChange={handleChange}
+        onBlur={handleBlur}
+        min={min}
+        max={max}
+        step={step}
+        placeholder={placeholder}
+        className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${prefix ? "pl-8" : ""} ${suffix ? "pr-12" : ""}`}
+        style={{ MozAppearance: "textfield" }}
+      />
+      {suffix && (
+        <span className="absolute right-8 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none">{suffix}</span>
+      )}
+    </div>
+  );
+};
+
+// =========================
+// Core logic
+// =========================
 const validateMortgageInputs = (inputs) => {
   const errors = {};
-  
   if (!inputs.principal || inputs.principal <= 0) {
     errors.principal = "Loan amount must be greater than $0";
   } else if (inputs.principal > 10000000) {
     errors.principal = "Loan amount cannot exceed $10,000,000";
   }
-  
   if (inputs.rate < 0) {
     errors.rate = "Interest rate cannot be negative";
   } else if (inputs.rate > 0.5) {
     errors.rate = "Interest rate cannot exceed 50%";
   }
-  
   if (!inputs.years || inputs.years <= 0) {
     errors.years = "Term must be greater than 0 years";
   } else if (inputs.years > 50) {
     errors.years = "Term cannot exceed 50 years";
   }
-  
   return errors;
 };
 
-// Calculation function
 const buildMortgageSchedule = ({ principal = 800000, rate = 0.06, years = 30 }) => {
   try {
-    if (principal <= 0 || years <= 0) {
-      throw new Error("Invalid loan parameters");
-    }
+    if (principal <= 0 || years <= 0) throw new Error("Invalid loan parameters");
 
     const monthlyRate = rate / 12;
     const numPayments = years * 12;
     let monthlyPayment;
-    
-    if (rate === 0 || monthlyRate === 0) {
+
+    if (!rate || monthlyRate === 0) {
       monthlyPayment = principal / numPayments;
     } else {
-      monthlyPayment = (monthlyRate * principal * Math.pow(1 + monthlyRate, numPayments)) / 
-                      (Math.pow(1 + monthlyRate, numPayments) - 1);
+      monthlyPayment =
+        (monthlyRate * principal * Math.pow(1 + monthlyRate, numPayments)) /
+        (Math.pow(1 + monthlyRate, numPayments) - 1);
     }
 
     let remainingBalance = principal;
     const schedule = [];
-    
+
     for (let month = 1; month <= numPayments; month++) {
       let interestPayment, principalPayment;
-      
-      if (rate === 0) {
+
+      if (!rate || monthlyRate === 0) {
         interestPayment = 0;
         principalPayment = monthlyPayment;
-        
-        if (month === numPayments) {
-          principalPayment = remainingBalance;
-        }
+        if (month === numPayments) principalPayment = remainingBalance; // exact cleanup
       } else {
         interestPayment = remainingBalance * monthlyRate;
         principalPayment = monthlyPayment - interestPayment;
-        
         if (month === numPayments) {
           principalPayment = remainingBalance;
           interestPayment = monthlyPayment - principalPayment;
         }
       }
-      
+
       remainingBalance = Math.max(0, remainingBalance - principalPayment);
-      
+
       schedule.push({
         month,
         year: Math.ceil(month / 12),
@@ -203,40 +218,35 @@ const buildMortgageSchedule = ({ principal = 800000, rate = 0.06, years = 30 }) 
         yearLabel: Math.ceil(month / 12).toString()
       });
     }
-    
+
     return {
       schedule,
       monthlyPayment: Math.round(monthlyPayment * 100) / 100,
-      totalInterest: schedule.reduce((sum, payment) => sum + payment.interestPayment, 0),
-      totalPaid: schedule.reduce((sum, payment) => sum + payment.totalPayment, 0)
+      totalInterest: schedule.reduce((s, p) => s + p.interestPayment, 0),
+      totalPaid: schedule.reduce((s, p) => s + p.totalPayment, 0)
     };
   } catch (error) {
-    return {
-      schedule: [],
-      monthlyPayment: 0,
-      totalInterest: 0,
-      totalPaid: 0,
-      error: error.message
-    };
+    return { schedule: [], monthlyPayment: 0, totalInterest: 0, totalPaid: 0, error: error.message };
   }
 };
 
-// Custom Tooltip - NO VALUE LABELS ON BARS
-const CustomTooltip = ({ active, payload, label }) => {
+const CustomTooltip = ({ active, payload, isMonthly }) => {
   if (active && payload && payload.length) {
     const data = payload[0]?.payload;
     return (
       <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
-        <p className={`font-medium ${TYPOGRAPHY.body} mb-2`}>{`Year ${label}`}</p>
-        {payload.map((entry, index) => (
-          <p key={index} style={{ color: entry.color }} className={TYPOGRAPHY.caption}>
-            {`${entry.name}: $${entry.value.toFixed(2)}`}
+        <p className={`${TYPOGRAPHY.body} font-medium mb-2`}>
+          {isMonthly ? `Month ${data?.month}` : `Year ${data?.year}`}
+        </p>
+        {payload.map((entry, i) => (
+          <p key={i} style={{ color: entry.color }} className={TYPOGRAPHY.caption}>
+            {`${entry.name}: $${Number(entry.value).toFixed(2)}`}
           </p>
         ))}
         {data && (
           <div className="mt-2 pt-2 border-t border-gray-200">
             <p className={`${TYPOGRAPHY.caption} text-gray-600`}>
-              Remaining Balance: ${data.remainingBalance?.toFixed(2)}
+              Remaining Balance: ${Number(data.remainingBalance).toFixed(2)}
             </p>
           </div>
         )}
@@ -246,88 +256,183 @@ const CustomTooltip = ({ active, payload, label }) => {
   return null;
 };
 
+// =========================
 // Main Component
+// =========================
 export default function CleanMortgageCalculator() {
-  const [inputs, setInputs] = useState({
-    principal: 800000,
-    rate: 0.06,
-    years: 30
-  });
-  
+  const [inputs, setInputs] = useState({ principal: 800000, rate: 0.06, years: 30 });
+  const [view, setView] = useState("monthly"); // "monthly" | "annual"
+
+  // Track Brush range so we can adapt tick density and avoid label collisions
+  const [brushRange, setBrushRange] = useState({ startIndex: 0, endIndex: 120 });
+
   const validationErrors = useMemo(() => validateMortgageInputs(inputs), [inputs]);
   const hasErrors = Object.keys(validationErrors).length > 0;
-  
+
   const mortgage = useMemo(() => {
     if (hasErrors) return null;
     return buildMortgageSchedule(inputs);
   }, [inputs, hasErrors]);
 
-  // Aggregate by year for cleaner chart
-  const chartData = useMemo(() => {
-    if (!mortgage?.schedule || mortgage.schedule.length === 0) return [];
-    
-    const yearlyData = {};
-    mortgage.schedule.forEach(payment => {
-      const year = payment.year;
-      if (!yearlyData[year]) {
-        yearlyData[year] = {
-          year,
-          yearLabel: year.toString(),
+  // Monthly dataset (raw schedule) -- MUST be defined BEFORE monthlyTicks
+  const chartDataMonthly = useMemo(() => {
+    if (!mortgage?.schedule?.length) return [];
+    return mortgage.schedule.map((p) => ({ ...p, monthLabel: `M${p.month}` }));
+  }, [mortgage]);
+
+  // Compute dynamic monthly ticks based on current Brush window size
+  const monthlyTicks = useMemo(() => {
+    if (!chartDataMonthly.length) return [];
+
+    const start = Math.max(0, brushRange.startIndex ?? 0);
+    const end = Math.min(chartDataMonthly.length - 1, brushRange.endIndex ?? chartDataMonthly.length - 1);
+    const visible = Math.max(1, end - start + 1);
+
+    // Choose step based on visible window size (use >= thresholds so 120 shows yearly ticks)
+    let step;
+    if (visible >= 240) step = 60; // ~5 years
+    else if (visible >= 180) step = 24; // 2 years
+    else if (visible >= 120) step = 12; // 1 year
+    else if (visible >= 60) step = 6;  // half-year
+    else if (visible >= 24) step = 3;  // quarterly
+    else step = 2;                     // every 2 months for tight views
+
+    const ticks = [];
+    for (let i = start; i <= end; i++) {
+      const m = i + 1; // month number (1-based)
+      if (m % step === 0) ticks.push(`M${m}`);
+    }
+    // Optionally include the final label only if it's not already aligned and won’t crowd the last tick
+    const lastMonth = end + 1;
+    const lastTickVal = ticks.length ? parseInt(ticks[ticks.length - 1].slice(1), 10) : -Infinity;
+    if (lastMonth % step !== 0 && lastMonth - lastTickVal >= Math.ceil(step / 2)) {
+      ticks.push(`M${lastMonth}`);
+    }
+    return ticks;
+  }, [chartDataMonthly, brushRange]);
+
+  // Annual aggregation
+  const chartDataAnnual = useMemo(() => {
+    if (!mortgage?.schedule?.length) return [];
+    const yearly = {};
+    mortgage.schedule.forEach((p) => {
+      const y = p.year;
+      if (!yearly[y])
+        yearly[y] = {
+          year: y,
+          yearLabel: `${y}`,
           interestPayment: 0,
           principalPayment: 0,
-          remainingBalance: payment.remainingBalance
+          remainingBalance: p.remainingBalance
         };
-      }
-      yearlyData[year].interestPayment += payment.interestPayment;
-      yearlyData[year].principalPayment += payment.principalPayment;
-      yearlyData[year].remainingBalance = payment.remainingBalance;
+      yearly[y].interestPayment += p.interestPayment;
+      yearly[y].principalPayment += p.principalPayment;
+      yearly[y].remainingBalance = p.remainingBalance;
     });
-    
-    return Object.values(yearlyData).map(year => ({
-      ...year,
-      interestPayment: Math.round(year.interestPayment * 100) / 100,
-      principalPayment: Math.round(year.principalPayment * 100) / 100
+    return Object.values(yearly).map((y) => ({
+      ...y,
+      interestPayment: Math.round(y.interestPayment * 100) / 100,
+      principalPayment: Math.round(y.principalPayment * 100) / 100
     }));
   }, [mortgage]);
 
-  const updateInput = useCallback((field, value) => {
-    setInputs(prev => ({ ...prev, [field]: value }));
-  }, []);
+  const chartData = view === "monthly" ? chartDataMonthly : chartDataAnnual;
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
+  // Reset brush to a sane default when switching views
+  useEffect(() => {
+    if (view === "monthly") {
+      setBrushRange({ startIndex: 0, endIndex: Math.min(119, Math.max(0, chartDataMonthly.length - 1)) });
+    }
+  }, [view, chartDataMonthly.length]);
+
+  const updateInput = useCallback((field, value) => {
+    setInputs((prev) => ({ ...prev, [field]: value }));
+  }, []);
+// Keep brush range within bounds if term changes
+useEffect(() => {
+  const maxIdx = Math.max(0, chartDataMonthly.length - 1);
+  setBrushRange((r) => ({
+    startIndex: Math.min(r.startIndex ?? 0, maxIdx),
+    endIndex: Math.min(r.endIndex ?? maxIdx, maxIdx),
+  }));
+}, [chartDataMonthly.length]);
+
+// Accessible controls mirroring the Brush (keyboard & SR friendly)
+const setStartMonth = useCallback((m) => {
+  const maxMonth = Math.max(1, chartDataMonthly.length);
+  const clamped = Math.max(1, Math.min(m || 1, maxMonth));
+  setBrushRange((r) => {
+    const end = Math.max(r.endIndex ?? 0, 0);
+    const startIdx = Math.min(clamped - 1, end); // never beyond end
+    return { startIndex: startIdx, endIndex: end };
+  });
+}, [chartDataMonthly.length]);
+
+const setEndMonth = useCallback((m) => {
+  const maxMonth = Math.max(1, chartDataMonthly.length);
+  const clamped = Math.max(1, Math.min(m || 1, maxMonth));
+  setBrushRange((r) => {
+    const start = Math.max(r.startIndex ?? 0, 0);
+    const endIdx = Math.max(clamped - 1, start); // never before start
+    return { startIndex: start, endIndex: endIdx };
+  });
+}, [chartDataMonthly.length]);
+
+  const formatCurrency = (amount) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
-    }).format(amount);
-  };
+    }).format(amount || 0);
+
+  // =========================
+  // Simple in-app test cases (render-time, non-blocking)
+  // =========================
+  const testResults = useMemo(() => {
+    const results = [];
+    const approx = (a, b, tol = 0.02) => Math.abs(a - b) <= tol; // default 2 cents
+
+    // Test 1: Zero rate should yield equal principal payments & zero interest
+    try {
+      const m0 = buildMortgageSchedule({ principal: 800000, rate: 0, years: 30 });
+      const expectedMonthly0 = 800000 / (30 * 12);
+      const pass1 = approx(m0.monthlyPayment, expectedMonthly0);
+      const pass2 = approx(m0.totalInterest, 0, 0.01);
+      const sumPrincipal = m0.schedule.reduce((s, p) => s + p.principalPayment, 0);
+      const pass3 = approx(sumPrincipal, 800000, 0.5); // allow rounding cents tolerance
+      results.push({ name: "Zero-rate monthly payment", pass: pass1 });
+      results.push({ name: "Zero-rate total interest", pass: pass2 });
+      results.push({ name: "Zero-rate principal sum", pass: pass3 });
+    } catch (e) {
+      results.push({ name: "Zero-rate scenario crashed", pass: false, err: e.message });
+    }
+
+    // Test 2: Typical 6%/30y payment should be ~ 4,796.40 for $800k
+    try {
+      const m6 = buildMortgageSchedule({ principal: 800000, rate: 0.06, years: 30 });
+      const pass4 = approx(m6.monthlyPayment, 4796.40, 0.05);
+      results.push({ name: "6% 30y monthly payment ≈ $4,796.40", pass: pass4 });
+    } catch (e) {
+      results.push({ name: "6% scenario crashed", pass: false, err: e.message });
+    }
+
+    return results;
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <header className="mb-8">
-          <h1 className={`text-3xl font-bold ${TYPOGRAPHY.heading} mb-2`}>
-            CFA Institute - Quantitative Methods: Mortgage Amortization
-          </h1>
-          <p className={`text-lg ${TYPOGRAPHY.body} mb-4`}>
-            Analyze how mortgage payments are split between principal and interest over the loan term.
-          </p>
-        </header>
+
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Inputs */}
           <Card title="Mortgage Parameters" className="lg:col-span-1">
             <div className="space-y-4">
-              <FormField
-                id="principal"
-                label="Loan Amount"
-                error={validationErrors.principal}
-                helpText="Total amount borrowed"
-                required
-              >
+              <FormField id="principal" label="Loan Amount" error={validationErrors.principal} helpText="Total amount borrowed" required>
                 <NumericInput
                   value={inputs.principal}
-                  onChange={(value) => updateInput('principal', value)}
+                  onChange={(v) => updateInput("principal", v)}
                   min={1000}
                   max={10000000}
                   step={1000}
@@ -335,16 +440,10 @@ export default function CleanMortgageCalculator() {
                 />
               </FormField>
 
-              <FormField
-                id="rate"
-                label="Annual Interest Rate"
-                error={validationErrors.rate}
-                helpText="Yearly interest rate (e.g., 6% = 0.06)"
-                required
-              >
+              <FormField id="rate" label="Annual Interest Rate" error={validationErrors.rate} helpText="Yearly interest rate (e.g., 6% = 0.06)" required>
                 <NumericInput
                   value={inputs.rate * 100}
-                  onChange={(value) => updateInput('rate', value / 100)}
+                  onChange={(v) => updateInput("rate", v / 100)}
                   min={0}
                   max={50}
                   step={0.01}
@@ -352,49 +451,39 @@ export default function CleanMortgageCalculator() {
                 />
               </FormField>
 
-              <FormField
-                id="years"
-                label="Loan Term"
-                error={validationErrors.years}
-                helpText="Length of loan in years"
-                required
-              >
+              <FormField id="years" label="Loan Term" error={validationErrors.years} helpText="Length of loan in years" required>
                 <NumericInput
                   value={inputs.years}
-                  onChange={(value) => updateInput('years', value)}
+                  onChange={(v) => updateInput("years", Math.round(v))}
                   min={1}
                   max={50}
                   step={1}
                   suffix="years"
+                  hideSteppers
                 />
               </FormField>
             </div>
 
             <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-              <h4 className={`font-semibold ${TYPOGRAPHY.body} mb-2 text-amber-800`}>
-                Key Concepts:
-              </h4>
+              <h4 className={`font-semibold ${TYPOGRAPHY.body} mb-2 text-amber-800`}>Key Concepts:</h4>
               <ul className={`${TYPOGRAPHY.caption} text-amber-700 space-y-1`}>
                 <li>• Early payments are mostly interest</li>
                 <li>• Principal portion increases over time</li>
-                <li>• Total payment remains constant</li>
-                <li>• Zero interest rate = equal principal payments</li>
+                <li>• Total payment remains constant (level-pay)</li>
+                <li>• 0% interest ⇒ all payments go to principal</li>
               </ul>
             </div>
           </Card>
 
+          {/* Charts + Summary */}
           <div className="lg:col-span-2 space-y-6">
             <Card title="Payment Summary">
               {hasErrors ? (
                 <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                  <h3 className={`font-semibold ${TYPOGRAPHY.body} text-red-800 mb-2`}>
-                    Please correct the following errors:
-                  </h3>
+                  <h3 className={`font-semibold ${TYPOGRAPHY.body} text-red-800 mb-2`}>Please correct the following errors:</h3>
                   <ul className="space-y-1">
-                    {Object.values(validationErrors).map((error, index) => (
-                      <li key={index} className={`${TYPOGRAPHY.caption} text-red-700`}>
-                        • {error}
-                      </li>
+                    {Object.values(validationErrors).map((err, i) => (
+                      <li key={i} className={`${TYPOGRAPHY.caption} text-red-700`}>• {err}</li>
                     ))}
                   </ul>
                 </div>
@@ -405,23 +494,15 @@ export default function CleanMortgageCalculator() {
               ) : mortgage ? (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                    <div className="text-2xl font-bold text-blue-600 mb-1">
-                      {formatCurrency(mortgage.monthlyPayment)}
-                    </div>
+                    <div className="text-2xl font-bold text-blue-600 mb-1">{formatCurrency(mortgage.monthlyPayment)}</div>
                     <p className={`${TYPOGRAPHY.body} text-blue-800`}>Monthly Payment</p>
                   </div>
-                  
                   <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                    <div className="text-2xl font-bold text-green-600 mb-1">
-                      {formatCurrency(mortgage.totalInterest)}
-                    </div>
+                    <div className="text-2xl font-bold text-green-600 mb-1">{formatCurrency(mortgage.totalInterest)}</div>
                     <p className={`${TYPOGRAPHY.body} text-green-800`}>Total Interest</p>
                   </div>
-
                   <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg">
-                    <div className="text-2xl font-bold text-purple-600 mb-1">
-                      {formatCurrency(mortgage.totalPaid)}
-                    </div>
+                    <div className="text-2xl font-bold text-purple-600 mb-1">{formatCurrency(mortgage.totalPaid)}</div>
                     <p className={`${TYPOGRAPHY.body} text-purple-800`}>Total Paid</p>
                   </div>
                 </div>
@@ -431,64 +512,110 @@ export default function CleanMortgageCalculator() {
             <Card title="Mortgage Cash Flows">
               {mortgage && chartData.length > 0 ? (
                 <div>
-                  <div className="flex flex-wrap gap-4 mb-4 text-sm">
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 rounded bg-green-500"></div>
-                      <span>Principal Payments</span>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex flex-wrap gap-4 text-sm">
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 rounded bg-green-500" />
+                        <span>Principal Payments</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 rounded" style={{ backgroundColor: COLORS.cfa.primary }} />
+                        <span>Interest Payments</span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 rounded" style={{ backgroundColor: COLORS.cfa.primary }}></div>
-                      <span>Interest Payments</span>
+                    <div className="inline-flex rounded-lg overflow-hidden border border-gray-200">
+                      <button className={`px-3 py-1 ${view === "monthly" ? "bg-blue-50 text-blue-600" : "bg-white"}`} onClick={() => setView("monthly")} aria-pressed={view === "monthly"}>Monthly</button>
+                      <button className={`px-3 py-1 border-l border-gray-200 ${view === "annual" ? "bg-blue-50 text-blue-600" : "bg-white"}`} onClick={() => setView("annual")} aria-pressed={view === "annual"}>Annual</button>
                     </div>
                   </div>
-                  
+
                   <div className="h-96 w-full">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart
-                        data={chartData}
-                        margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
-                      >
+                      <BarChart data={chartData} margin={{ top: 20, right: 54, left: 20, bottom: 100 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke={COLORS.chart.grid} />
-                        <XAxis 
-                          dataKey="yearLabel"
+                        <XAxis
+                          dataKey={view === "monthly" ? "monthLabel" : "yearLabel"}
                           tick={{ fontSize: 12, fill: COLORS.chart.text }}
-                          label={{ value: 'Years', position: 'insideBottom', offset: -10 }}
+                          ticks={view === "monthly" ? monthlyTicks : undefined}
+                          label={{ value: view === "monthly" ? "Months" : "Years", position: "bottom", offset: 24 }}
+                          interval={0}
+                          height={40}
+                          padding={{ left: 0, right: 36 }}
+                          tickMargin={8}
                         />
-                        <YAxis 
-                          tick={{ fontSize: 12, fill: COLORS.chart.text }}
-                          tickFormatter={(value) => `${Math.round(value / 1000)}K`}
-                        />
-                        <Tooltip content={<CustomTooltip />} />
-                        
-                        <Bar 
-                          dataKey="interestPayment" 
-                          name="Interest Payments"
-                          stackId="payment"
-                          fill={COLORS.cfa.primary}
-                        />
-                        <Bar 
-                          dataKey="principalPayment" 
-                          name="Principal Payments"
-                          stackId="payment"
-                          fill={COLORS.semantic.positive}
-                        />
+                        <YAxis tick={{ fontSize: 12, fill: COLORS.chart.text }} tickFormatter={(v) => `${Math.round(v / 1000)}K`} />
+                        <Tooltip content={<CustomTooltip isMonthly={view === "monthly"} />} />
+                        <Bar dataKey="interestPayment" name="Interest Payments" stackId="payment" fill={COLORS.cfa.primary} />
+                        <Bar dataKey="principalPayment" name="Principal Payments" stackId="payment" fill={COLORS.semantic.positive} />
+                        {view === "monthly" && (
+                          <Brush
+                            dataKey="monthLabel"
+                            height={20}
+                            travellerWidth={10}
+                            startIndex={brushRange.startIndex}
+                            endIndex={Math.min(brushRange.endIndex, Math.max(0, chartDataMonthly.length - 1))}
+                            onChange={(range) => {
+                              // Range can be an object or array depending on Recharts version; normalize
+                              const s = typeof range?.startIndex === 'number' ? range.startIndex : 0;
+                              const e = typeof range?.endIndex === 'number' ? range.endIndex : Math.max(0, chartDataMonthly.length - 1);
+                              setBrushRange({ startIndex: s, endIndex: e });
+                            }}
+                          />
+                        )}
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
-                  
+{/* Accessible controls mirroring the Brush */}
+{view === "monthly" && (
+  <div role="group" aria-label="Select visible month range" className="mt-3 flex flex-wrap items-end gap-4">
+    <div className="flex items-center gap-2">
+      <label htmlFor="start-month" className={`${TYPOGRAPHY.caption}`}>Start month</label>
+      <NumericInput
+        value={Math.min(brushRange.startIndex + 1, Math.max(1, chartDataMonthly.length))}
+        onChange={setStartMonth}
+        min={1}
+        max={Math.max(1, chartDataMonthly.length)}
+        step={1}
+        hideSteppers
+        placeholder="1"
+      />
+    </div>
+    <div className="flex items-center gap-2">
+      <label htmlFor="end-month" className={`${TYPOGRAPHY.caption}`}>End month</label>
+      <NumericInput
+        value={Math.min(brushRange.endIndex + 1, Math.max(1, chartDataMonthly.length))}
+        onChange={setEndMonth}
+        min={1}
+        max={Math.max(1, chartDataMonthly.length)}
+        step={1}
+        hideSteppers
+        placeholder="120"
+      />
+    </div>
+    <div aria-live="polite" className={`${TYPOGRAPHY.caption} text-gray-600`}>
+      Showing M{Math.min(brushRange.startIndex + 1, Math.max(1, chartDataMonthly.length))}–M{Math.min(brushRange.endIndex + 1, Math.max(1, chartDataMonthly.length))}
+    </div>
+  </div>
+)}
+
                   <p className={`${TYPOGRAPHY.caption} mt-4 text-center`}>
-                    Chart shows how payment composition shifts from mostly interest to mostly principal over time.
-                    {inputs.rate === 0 && " With 0% interest, all payments go toward principal."}
+                    {view === "monthly" ? (
+                      <>Chart shows monthly composition of each payment. {inputs.rate === 0 && "With 0% interest, all payments go toward principal."}</>
+                    ) : (
+                      <>Chart shows annual totals (sum of 12 monthly payments each year). {inputs.rate === 0 && "With 0% interest, all payments go toward principal."}</>
+                    )}
                   </p>
                 </div>
               ) : (
                 <div className="h-96 flex items-center justify-center bg-gray-50 rounded-lg">
-                  <p className={`${TYPOGRAPHY.body} text-gray-500`}>
-                    Complete the inputs above to see amortization schedule
-                  </p>
+                  <p className={`${TYPOGRAPHY.body} text-gray-500`}>Complete the inputs above to see amortization schedule</p>
                 </div>
               )}
             </Card>
+
+
+
+
           </div>
         </div>
       </div>
