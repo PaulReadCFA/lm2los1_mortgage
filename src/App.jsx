@@ -397,45 +397,11 @@ export default function EnhancedMortgageCalculator() {
       maximumFractionDigits: 0
     }).format(amount || 0);
 
-  // =========================
-  // Simple in-app test cases (render-time, non-blocking)
-  // =========================
-  const testResults = useMemo(() => {
-    const results = [];
-    const approx = (a, b, tol = 0.02) => Math.abs(a - b) <= tol; // default 2 cents
-
-    // Test 1: Zero rate should yield equal principal payments & zero interest
-    try {
-      const m0 = buildMortgageSchedule({ principal: 800000, rate: 0, years: 30 });
-      const expectedMonthly0 = 800000 / (30 * 12);
-      const pass1 = approx(m0.monthlyPayment, expectedMonthly0);
-      const pass2 = approx(m0.totalInterest, 0, 0.01);
-      const sumPrincipal = m0.schedule.reduce((s, p) => s + p.principalPayment, 0);
-      const pass3 = approx(sumPrincipal, 800000, 0.5); // allow rounding cents tolerance
-      results.push({ name: "Zero-rate monthly payment", pass: pass1 });
-      results.push({ name: "Zero-rate total interest", pass: pass2 });
-      results.push({ name: "Zero-rate principal sum", pass: pass3 });
-    } catch (e) {
-      results.push({ name: "Zero-rate scenario crashed", pass: false, err: e.message });
-    }
-
-    // Test 2: Typical 6%/30y payment should be ~ 4,796.40 for $800k
-    try {
-      const m6 = buildMortgageSchedule({ principal: 800000, rate: 0.06, years: 30 });
-      const pass4 = approx(m6.monthlyPayment, 4796.40, 0.05);
-      results.push({ name: "6% 30y monthly payment ≈ $4,796.40", pass: pass4 });
-    } catch (e) {
-      results.push({ name: "6% scenario crashed", pass: false, err: e.message });
-    }
-
-    return results;
-  }, []);
-
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-        {/* Left Column: Summary + Inputs */}
+        {/* LEFT COLUMN: Summary + Formula */}
         <div className="md:col-span-1 space-y-6">
           <Card title="Payment Summary">
             {hasErrors ? (
@@ -469,61 +435,82 @@ export default function EnhancedMortgageCalculator() {
             ) : null}
           </Card>
 
-          {/* Moved Inputs to Left Column */}
-          <Card title="Mortgage Parameters">
-            <div className="space-y-4">
-              <FormField id="principal" label="Loan Amount" error={validationErrors.principal} helpText="Total amount borrowed" required>
-                <NumericInput
-                  value={inputs.principal}
-                  onChange={(v) => updateInput("principal", v)}
-                  min={1000}
-                  max={10000000}
-                  step={1000}
-                  prefix="$"
-                />
-              </FormField>
+          {/* Formula Box - NOW ON LEFT */}
+          {mortgage && !hasErrors && (
+            <Card title="Mortgage Payment Formula">
+              <div className="space-y-4">
+                <div className="text-center font-mono text-lg bg-gray-50 p-4 rounded-lg">
+                  <div className="flex items-center justify-center flex-wrap gap-2">
+                    <span className="font-bold px-2 py-1 rounded text-white text-base" style={{ backgroundColor: COLORS.cfa.dark }}>
+                      M
+                    </span>
+                    <span>=</span>
+                    <span className="font-bold px-2 py-1 rounded text-white text-base" style={{ backgroundColor: COLORS.semantic.neutral }}>
+                      P
+                    </span>
+                    <span>×</span>
+                    <div className="flex flex-col items-center">
+                      <div className="flex items-center gap-1 border-b-2 border-gray-400 pb-1">
+                        <span className="font-bold px-1 py-1 rounded text-white text-sm" style={{ backgroundColor: COLORS.cfa.primary }}>
+                          r
+                        </span>
+                        <span className="text-sm">(1+</span>
+                        <span className="font-bold px-1 py-1 rounded text-white text-sm" style={{ backgroundColor: COLORS.cfa.primary }}>
+                          r
+                        </span>
+                        <span className="text-sm">)<sup>n</sup></span>
+                      </div>
+                      <div className="flex items-center gap-1 pt-1">
+                        <span className="text-sm">(1+</span>
+                        <span className="font-bold px-1 py-1 rounded text-white text-sm" style={{ backgroundColor: COLORS.cfa.primary }}>
+                          r
+                        </span>
+                        <span className="text-sm">)<sup>n</sup> - 1</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
-              <FormField id="rate" label="Annual Interest Rate" error={validationErrors.rate} helpText="Enter as percentage (e.g., enter 6 for 6%)" required>
-                <NumericInput
-                  value={inputs.rate * 100}
-                  onChange={(v) => updateInput("rate", v / 100)}
-                  min={0}
-                  max={50}
-                  step={0.01}
-                  suffix="%"
-                />
-              </FormField>
+                <div className="grid grid-cols-1 gap-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded text-white flex items-center justify-center font-bold text-sm" style={{ backgroundColor: COLORS.cfa.dark }}>
+                      M
+                    </span>
+                    <span>Monthly Payment = <strong>{formatCurrency(mortgage.monthlyPayment)}</strong></span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded text-white flex items-center justify-center font-bold text-sm" style={{ backgroundColor: COLORS.semantic.neutral }}>
+                      P
+                    </span>
+                    <span>Principal = <strong>{formatCurrency(inputs.principal)}</strong></span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded text-white flex items-center justify-center font-bold text-sm" style={{ backgroundColor: COLORS.cfa.primary }}>
+                      r
+                    </span>
+                    <span>Monthly Rate = <strong>{(inputs.rate / 12 * 100).toFixed(3)}%</strong></span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded text-gray-700 border border-gray-400 flex items-center justify-center font-bold text-sm">
+                      n
+                    </span>
+                    <span>Number of Payments = <strong>{inputs.years * 12}</strong></span>
+                  </div>
+                </div>
 
-              <FormField id="years" label="Loan Term" error={validationErrors.years} helpText="Length of loan in years" required>
-                <NumericInput
-                  value={inputs.years}
-                  onChange={(v) => updateInput("years", Math.round(v))}
-                  min={1}
-                  max={50}
-                  step={1}
-                  suffix="years"
-                  hideSteppers
-                />
-              </FormField>
-
-              {/* Reset Button */}
-              <div className="pt-4 border-t border-gray-200">
-                <button
-                  onClick={resetToDefaults}
-                  className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 focus:bg-gray-200 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
-                  aria-describedby="reset-help"
-                >
-                  Reset to Defaults
-                </button>
-                <p id="reset-help" className={`${TYPOGRAPHY.caption} text-gray-500 mt-1`}>
-                  Resets to: $800K loan, 6% rate, 30 years
-                </p>
+                {inputs.rate === 0 && (
+                  <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <p className={`${TYPOGRAPHY.caption} text-amber-800 text-center`}>
+                      <strong>Special Case:</strong> With 0% interest rate, Monthly Payment = Principal ÷ Number of Payments = {formatCurrency(inputs.principal)} ÷ {inputs.years * 12} = <strong>{formatCurrency(mortgage.monthlyPayment)}</strong>
+                    </p>
+                  </div>
+                )}
               </div>
-            </div>
-          </Card>
+            </Card>
+          )}
         </div>
 
-        {/* Right Column: Chart + Formula */}
+        {/* RIGHT COLUMN: Chart + Parameters */}
         <div className="md:col-span-3 space-y-6">
             <Card title="Mortgage Cash Flows">
               {mortgage && chartData.length > 0 ? (
@@ -594,7 +581,7 @@ export default function EnhancedMortgageCalculator() {
                           padding={{ left: 0, right: 36 }}
                           tickMargin={8}
                         />
-                        <YAxis tick={{ fontSize: 12, fill: COLORS.chart.text }} tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(1)}K` : `${Math.round(v)}`} />
+                        <YAxis tick={{ fontSize: 12, fill: COLORS.chart.text }} tickFormatter={(v) => v >= 1000 ? `$${(v/1000).toFixed(1)}K` : `$${Math.round(v)}`} />
                         <Tooltip content={<CustomTooltip isMonthly={view === "monthly"} />} />
                         <Bar dataKey="interestPayment" name="Interest Payments" stackId="payment" fill={COLORS.cfa.primary} />
                         <Bar dataKey="principalPayment" name="Principal Payments" stackId="payment" fill={COLORS.semantic.positive} />
@@ -665,88 +652,61 @@ export default function EnhancedMortgageCalculator() {
               )}
             </Card>
 
-            {/* Dynamic Formula Box */}
-            {mortgage && !hasErrors && (
-              <Card title="Mortgage Payment Formula">
-                <div className="space-y-4">
-                  <div className="text-center font-mono text-lg bg-gray-50 p-4 rounded-lg">
-                    <div className="flex items-center justify-center flex-wrap gap-2">
-                      <span className="font-bold px-2 py-1 rounded text-white text-base" style={{ backgroundColor: COLORS.cfa.dark }}>
-                        M
-                      </span>
-                      <span>=</span>
-                      <span className="font-bold px-2 py-1 rounded text-white text-base" style={{ backgroundColor: COLORS.semantic.neutral }}>
-                        P
-                      </span>
-                      <span>×</span>
-                      <div className="flex flex-col items-center">
-                        <div className="flex items-center gap-1 border-b-2 border-gray-400 pb-1">
-                          <span className="font-bold px-1 py-1 rounded text-white text-sm" style={{ backgroundColor: COLORS.cfa.primary }}>
-                            r
-                          </span>
-                          <span className="text-sm">(1+</span>
-                          <span className="font-bold px-1 py-1 rounded text-white text-sm" style={{ backgroundColor: COLORS.cfa.primary }}>
-                            r
-                          </span>
-                          <span className="text-sm">)<sup>n</sup></span>
-                        </div>
-                        <div className="flex items-center gap-1 pt-1">
-                          <span className="text-sm">(1+</span>
-                          <span className="font-bold px-1 py-1 rounded text-white text-sm" style={{ backgroundColor: COLORS.cfa.primary }}>
-                            r
-                          </span>
-                          <span className="text-sm">)<sup>n</sup> - 1</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+            {/* Parameters - NOW ON RIGHT */}
+            <Card title="Mortgage Parameters">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <FormField id="principal" label="Loan Amount" error={validationErrors.principal} helpText="Total amount borrowed" required>
+                  <NumericInput
+                    value={inputs.principal}
+                    onChange={(v) => updateInput("principal", v)}
+                    min={1000}
+                    max={10000000}
+                    step={1000}
+                    prefix="$"
+                  />
+                </FormField>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <span className="w-6 h-6 rounded text-white flex items-center justify-center font-bold text-sm" style={{ backgroundColor: COLORS.cfa.dark }}>
-                          M
-                        </span>
-                        <span>Monthly Payment = <strong>{formatCurrency(mortgage.monthlyPayment)}</strong></span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="w-6 h-6 rounded text-white flex items-center justify-center font-bold text-sm" style={{ backgroundColor: COLORS.semantic.neutral }}>
-                          P
-                        </span>
-                        <span>Principal = <strong>{formatCurrency(inputs.principal)}</strong></span>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <span className="w-6 h-6 rounded text-white flex items-center justify-center font-bold text-sm" style={{ backgroundColor: COLORS.cfa.primary }}>
-                          r
-                        </span>
-                        <span>Monthly Rate = <strong>{(inputs.rate / 12 * 100).toFixed(3)}%</strong></span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="w-6 h-6 rounded text-gray-700 border border-gray-400 flex items-center justify-center font-bold text-sm">
-                          n
-                        </span>
-                        <span>Number of Payments = <strong>{inputs.years * 12}</strong></span>
-                      </div>
-                    </div>
-                  </div>
+                <FormField id="rate" label="Annual Interest Rate" error={validationErrors.rate} helpText="Enter as percentage (e.g., enter 6 for 6%)" required>
+                  <NumericInput
+                    value={inputs.rate * 100}
+                    onChange={(v) => updateInput("rate", v / 100)}
+                    min={0}
+                    max={50}
+                    step={0.01}
+                    suffix="%"
+                  />
+                </FormField>
 
-                  {inputs.rate === 0 && (
-                    <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                      <p className={`${TYPOGRAPHY.caption} text-amber-800 text-center`}>
-                        <strong>Special Case:</strong> With 0% interest rate, Monthly Payment = Principal ÷ Number of Payments = {formatCurrency(inputs.principal)} ÷ {inputs.years * 12} = <strong>{formatCurrency(mortgage.monthlyPayment)}</strong>
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </Card>
-            )}
+                <FormField id="years" label="Loan Term" error={validationErrors.years} helpText="Length of loan in years" required>
+                  <NumericInput
+                    value={inputs.years}
+                    onChange={(v) => updateInput("years", Math.round(v))}
+                    min={1}
+                    max={50}
+                    step={1}
+                    suffix="years"
+                    hideSteppers
+                  />
+                </FormField>
+              </div>
+
+              {/* Reset Button */}
+              <div className="pt-4 border-t border-gray-200 mt-4">
+                <button
+                  onClick={resetToDefaults}
+                  className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 focus:bg-gray-200 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+                  aria-describedby="reset-help"
+                >
+                  Reset to Defaults
+                </button>
+                <p id="reset-help" className={`${TYPOGRAPHY.caption} text-gray-500 mt-1`}>
+                  Resets to: $800K loan, 6% rate, 30 years
+                </p>
+              </div>
+            </Card>
           </div>
         </div>
       </div>
-
-
     </div>
   );
 }
