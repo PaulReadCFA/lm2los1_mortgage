@@ -569,7 +569,12 @@ export default function EnhancedMortgageCalculator() {
                       </p>
                     </div>
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={chartData} margin={{ top: 20, right: 54, left: 20, bottom: 100 }}>
+                      <BarChart 
+                        data={chartData} 
+                        margin={{ top: 20, right: 54, left: 20, bottom: 100 }}
+                        barCategoryGap="5%"
+                        maxBarSize={60}
+                      >
                         <CartesianGrid strokeDasharray="3 3" stroke={COLORS.chart.grid} />
                         <XAxis
                           dataKey={view === "monthly" ? "monthLabel" : "yearLabel"}
@@ -578,7 +583,7 @@ export default function EnhancedMortgageCalculator() {
                           label={{ value: view === "monthly" ? "Months" : "Years", position: "bottom", offset: 24 }}
                           interval={0}
                           height={40}
-                          padding={{ left: 0, right: 36 }}
+                          padding={{ left: 0, right: 0 }}
                           tickMargin={8}
                         />
                         <YAxis tick={{ fontSize: 12, fill: COLORS.chart.text }} tickFormatter={(v) => v >= 1000 ? `$${(v/1000).toFixed(1)}K` : `$${Math.round(v)}`} />
@@ -590,6 +595,7 @@ export default function EnhancedMortgageCalculator() {
                             dataKey="monthLabel"
                             height={20}
                             travellerWidth={10}
+                            margin={{ left: 40, right: 70 }}
                             startIndex={brushRange.startIndex}
                             endIndex={Math.min(brushRange.endIndex, Math.max(0, chartDataMonthly.length - 1))}
                             onChange={(range) => {
