@@ -435,8 +435,42 @@ export default function EnhancedMortgageCalculator() {
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Inputs */}
-          <Card title="Mortgage Parameters" className="lg:col-span-1">
+        {/* Left Column: Summary + Inputs */}
+        <div className="lg:col-span-1 space-y-6">
+          <Card title="Payment Summary">
+            {hasErrors ? (
+              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                <h3 className={`font-semibold ${TYPOGRAPHY.body} text-red-800 mb-2`}>Please correct the following errors:</h3>
+                <ul className="space-y-1">
+                  {Object.values(validationErrors).map((err, i) => (
+                    <li key={i} className={`${TYPOGRAPHY.caption} text-red-700`}>• {err}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : mortgage?.error ? (
+              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                <p className={`${TYPOGRAPHY.body} text-red-800`}>{mortgage.error}</p>
+              </div>
+            ) : mortgage ? (
+              <div className="space-y-4">
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg">
+                  <div className="text-2xl font-bold mb-1" style={{ color: COLORS.cfa.dark }}>{formatCurrency(mortgage.monthlyPayment)}</div>
+                  <p className={`${TYPOGRAPHY.body}`} style={{ color: COLORS.cfa.dark }}>Monthly Payment</p>
+                </div>
+                <div className="p-4 border rounded-lg" style={{ backgroundColor: '#E8F0FF', borderColor: COLORS.cfa.primary }}>
+                  <div className="text-2xl font-bold mb-1" style={{ color: COLORS.cfa.primary }}>{formatCurrency(mortgage.totalInterest)}</div>
+                  <p className={`${TYPOGRAPHY.body}`} style={{ color: COLORS.cfa.primary }}>Total Interest</p>
+                </div>
+                <div className="p-4 bg-purple-50 border border-purple-500 rounded-lg">
+                  <div className="text-2xl font-bold text-purple-600 mb-1">{formatCurrency(mortgage.totalPaid)}</div>
+                  <p className={`${TYPOGRAPHY.body} text-purple-800`}>Total Paid</p>
+                </div>
+              </div>
+            ) : null}
+          </Card>
+
+          {/* Moved Inputs to Left Column */}
+          <Card title="Mortgage Parameters">
             <div className="space-y-4">
               <FormField id="principal" label="Loan Amount" error={validationErrors.principal} helpText="Total amount borrowed" required>
                 <NumericInput
@@ -486,52 +520,11 @@ export default function EnhancedMortgageCalculator() {
                 </p>
               </div>
             </div>
-
-            <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-              <h4 className={`font-semibold ${TYPOGRAPHY.body} mb-2 text-amber-800`}>Key Concepts:</h4>
-              <ul className={`${TYPOGRAPHY.caption} text-amber-700 space-y-1`}>
-                <li>• Early payments are mostly interest</li>
-                <li>• Principal portion increases over time</li>
-                <li>• Total payment remains constant (level-pay)</li>
-                <li>• 0% interest ⇒ all payments go to principal</li>
-              </ul>
-            </div>
           </Card>
+        </div>
 
-          {/* Charts + Summary */}
-          <div className="lg:col-span-2 space-y-6">
-            <Card title="Payment Summary">
-              {hasErrors ? (
-                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                  <h3 className={`font-semibold ${TYPOGRAPHY.body} text-red-800 mb-2`}>Please correct the following errors:</h3>
-                  <ul className="space-y-1">
-                    {Object.values(validationErrors).map((err, i) => (
-                      <li key={i} className={`${TYPOGRAPHY.caption} text-red-700`}>• {err}</li>
-                    ))}
-                  </ul>
-                </div>
-              ) : mortgage?.error ? (
-                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                  <p className={`${TYPOGRAPHY.body} text-red-800`}>{mortgage.error}</p>
-                </div>
-              ) : mortgage ? (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                    <div className="text-2xl font-bold text-blue-600 mb-1">{formatCurrency(mortgage.monthlyPayment)}</div>
-                    <p className={`${TYPOGRAPHY.body} text-blue-800`}>Monthly Payment</p>
-                  </div>
-                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                    <div className="text-2xl font-bold text-green-600 mb-1">{formatCurrency(mortgage.totalInterest)}</div>
-                    <p className={`${TYPOGRAPHY.body} text-green-800`}>Total Interest</p>
-                  </div>
-                  <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg">
-                    <div className="text-2xl font-bold text-purple-600 mb-1">{formatCurrency(mortgage.totalPaid)}</div>
-                    <p className={`${TYPOGRAPHY.body} text-purple-800`}>Total Paid</p>
-                  </div>
-                </div>
-              ) : null}
-            </Card>
-
+        {/* Right Column: Chart + Formula */}
+        <div className="lg:col-span-2 space-y-6">
             <Card title="Mortgage Cash Flows">
               {mortgage && chartData.length > 0 ? (
                 <div>
@@ -671,9 +664,89 @@ export default function EnhancedMortgageCalculator() {
                 </div>
               )}
             </Card>
+
+            {/* Dynamic Formula Box */}
+            {mortgage && !hasErrors && (
+              <Card title="Mortgage Payment Formula">
+                <div className="space-y-4">
+                  <div className="text-center font-mono text-lg bg-gray-50 p-4 rounded-lg">
+                    <div className="flex items-center justify-center flex-wrap gap-2">
+                      <span className="font-bold px-2 py-1 rounded text-white text-base" style={{ backgroundColor: COLORS.cfa.dark }}>
+                        M
+                      </span>
+                      <span>=</span>
+                      <span className="font-bold px-2 py-1 rounded text-white text-base" style={{ backgroundColor: COLORS.semantic.neutral }}>
+                        P
+                      </span>
+                      <span>×</span>
+                      <div className="flex flex-col items-center">
+                        <div className="flex items-center gap-1 border-b-2 border-gray-400 pb-1">
+                          <span className="font-bold px-1 py-1 rounded text-white text-sm" style={{ backgroundColor: COLORS.cfa.primary }}>
+                            r
+                          </span>
+                          <span className="text-sm">(1+</span>
+                          <span className="font-bold px-1 py-1 rounded text-white text-sm" style={{ backgroundColor: COLORS.cfa.primary }}>
+                            r
+                          </span>
+                          <span className="text-sm">)<sup>n</sup></span>
+                        </div>
+                        <div className="flex items-center gap-1 pt-1">
+                          <span className="text-sm">(1+</span>
+                          <span className="font-bold px-1 py-1 rounded text-white text-sm" style={{ backgroundColor: COLORS.cfa.primary }}>
+                            r
+                          </span>
+                          <span className="text-sm">)<sup>n</sup> - 1</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded text-white flex items-center justify-center font-bold text-sm" style={{ backgroundColor: COLORS.cfa.dark }}>
+                          M
+                        </span>
+                        <span>Monthly Payment = <strong>{formatCurrency(mortgage.monthlyPayment)}</strong></span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded text-white flex items-center justify-center font-bold text-sm" style={{ backgroundColor: COLORS.semantic.neutral }}>
+                          P
+                        </span>
+                        <span>Principal = <strong>{formatCurrency(inputs.principal)}</strong></span>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded text-white flex items-center justify-center font-bold text-sm" style={{ backgroundColor: COLORS.cfa.primary }}>
+                          r
+                        </span>
+                        <span>Monthly Rate = <strong>{(inputs.rate / 12 * 100).toFixed(3)}%</strong></span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded text-gray-700 border border-gray-400 flex items-center justify-center font-bold text-sm">
+                          n
+                        </span>
+                        <span>Number of Payments = <strong>{inputs.years * 12}</strong></span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {inputs.rate === 0 && (
+                    <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                      <p className={`${TYPOGRAPHY.caption} text-amber-800 text-center`}>
+                        <strong>Special Case:</strong> With 0% interest rate, Monthly Payment = Principal ÷ Number of Payments = {formatCurrency(inputs.principal)} ÷ {inputs.years * 12} = <strong>{formatCurrency(mortgage.monthlyPayment)}</strong>
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            )}
           </div>
         </div>
       </div>
+
+
     </div>
   );
 }
