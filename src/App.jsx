@@ -434,9 +434,9 @@ export default function EnhancedMortgageCalculator() {
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         {/* Left Column: Summary + Inputs */}
-        <div className="lg:col-span-1 space-y-6">
+        <div className="md:col-span-1 space-y-6">
           <Card title="Payment Summary">
             {hasErrors ? (
               <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
@@ -524,7 +524,7 @@ export default function EnhancedMortgageCalculator() {
         </div>
 
         {/* Right Column: Chart + Formula */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="md:col-span-2 space-y-6">
             <Card title="Mortgage Cash Flows">
               {mortgage && chartData.length > 0 ? (
                 <div>
