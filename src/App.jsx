@@ -594,7 +594,7 @@ export default function EnhancedMortgageCalculator() {
                           padding={{ left: 0, right: 36 }}
                           tickMargin={8}
                         />
-                        <YAxis tick={{ fontSize: 12, fill: COLORS.chart.text }} tickFormatter={(v) => `${Math.round(v / 1000)}K`} />
+                        <YAxis tick={{ fontSize: 12, fill: COLORS.chart.text }} tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(1)}K` : `${Math.round(v)}`} />
                         <Tooltip content={<CustomTooltip isMonthly={view === "monthly"} />} />
                         <Bar dataKey="interestPayment" name="Interest Payments" stackId="payment" fill={COLORS.cfa.primary} />
                         <Bar dataKey="principalPayment" name="Principal Payments" stackId="payment" fill={COLORS.semantic.positive} />
