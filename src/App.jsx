@@ -596,25 +596,29 @@ export default function EnhancedMortgageCalculator() {
                     <div role="group" aria-label="Select visible month range" className="mt-3 flex flex-wrap items-end gap-4">
                       <div className="flex items-center gap-2">
                         <label htmlFor="start-month" className={`${TYPOGRAPHY.caption}`}>Start month</label>
-                        <NumericInput
-                          value={monthRange.start}
-                          onChange={setStartMonth}
-                          min={1}
-                          max={Math.max(1, chartDataMonthly.length)}
-                          step={1}
-                          placeholder="1"
-                        />
+                        <div className="w-20">
+                          <NumericInput
+                            value={monthRange.start}
+                            onChange={setStartMonth}
+                            min={1}
+                            max={Math.max(1, chartDataMonthly.length)}
+                            step={1}
+                            placeholder="1"
+                          />
+                        </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <label htmlFor="end-month" className={`${TYPOGRAPHY.caption}`}>End month</label>
-                        <NumericInput
-                          value={monthRange.end}
-                          onChange={setEndMonth}
-                          min={1}
-                          max={Math.max(1, chartDataMonthly.length)}
-                          step={1}
-                          placeholder="120"
-                        />
+                        <div className="w-20">
+                          <NumericInput
+                            value={monthRange.end}
+                            onChange={setEndMonth}
+                            min={1}
+                            max={Math.max(1, chartDataMonthly.length)}
+                            step={1}
+                            placeholder="120"
+                          />
+                        </div>
                       </div>
                       <div aria-live="polite" className={`${TYPOGRAPHY.caption} text-gray-600`}>
                         Showing M{monthRange.start}–M{monthRange.end}
