@@ -9,6 +9,38 @@ import {
   Tooltip
 } from "recharts";
 
+const HelpTooltip = ({ id, text }) => {
+  const [visible, setVisible] = useState(false);
+
+  return (
+    <span className="relative inline-block ml-2">
+      <button
+        type="button"
+        className="w-4 h-4 rounded-full bg-gray-200 text-gray-700 text-xs font-bold 
+                   focus:outline-none focus:ring-2 focus:ring-blue-500"
+        aria-describedby={visible ? `${id}-help` : undefined}
+        aria-label="More information"
+        onMouseEnter={() => setVisible(true)}
+        onMouseLeave={() => setVisible(false)}
+        onFocus={() => setVisible(true)}
+        onBlur={() => setVisible(false)}
+      >
+        ?
+      </button>
+      {visible && (
+        <span
+          id={`${id}-help`}
+          role="tooltip"
+          className="absolute left-6 top-0 z-10 w-56 p-2 text-xs text-white bg-gray-800 rounded shadow-lg"
+        >
+          {text}
+        </span>
+      )}
+    </span>
+  );
+};
+
+
 // =========================
 // CFA Institute brand tokens
 // =========================
@@ -44,28 +76,35 @@ const Card = ({ title, children, className = "" }) => (
 
 const FormField = ({ id, label, children, error, helpText, required = false }) => {
   const errorId = error ? `${id}-error` : undefined;
-  const helpId = helpText ? `${id}-help` : undefined;
-  const describedBy = [errorId, helpId].filter(Boolean).join(" ");
+  const describedBy = errorId ? errorId : undefined;
 
   return (
     <div className="space-y-1">
-      <label htmlFor={id} className={`block ${TYPOGRAPHY.label} ${required ? "after:content-['*'] after:text-red-500 after:ml-1" : ""}`}>
+      <label
+        htmlFor={id}
+        className={`block ${TYPOGRAPHY.label} flex items-center ${
+          required ? "after:content-['*'] after:text-red-500 after:ml-1" : ""
+        }`}
+      >
         {label}
+        {helpText && <HelpTooltip id={id} text={helpText} />}
       </label>
+
       {React.cloneElement(children, {
         id,
         "aria-describedby": describedBy || undefined,
         "aria-invalid": error ? "true" : "false"
       })}
-      {helpText && (
-        <p id={helpId} className={`${TYPOGRAPHY.caption} text-gray-500`}>{helpText}</p>
-      )}
+
       {error && (
-        <p id={errorId} className={`${TYPOGRAPHY.caption} text-red-600`} role="alert">{error}</p>
+        <p id={errorId} className={`${TYPOGRAPHY.caption} text-red-600`} role="alert">
+          {error}
+        </p>
       )}
     </div>
   );
 };
+
 
 // Simple numeric input - let browser handle spinners naturally
 const NumericInput = ({
@@ -643,39 +682,58 @@ export default function EnhancedMortgageCalculator() {
 
             <Card title="Mortgage Parameters">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <FormField id="principal" label="Loan Amount" error={validationErrors.principal} helpText="Total amount borrowed" required>
-                  <NumericInput
-                    value={inputs.principal}
-                    onChange={(v) => updateInput("principal", v)}
-                    min={1000}
-                    max={10000000}
-                    step={1000}
-                    prefix="$"
-                  />
-                </FormField>
+                <FormField
+  id="principal"
+  label="Loan Amount"
+  error={validationErrors.principal}
+  helpText="Total amount borrowed"
+  required
+>
+  <NumericInput
+    value={inputs.principal}
+    onChange={(v) => updateInput("principal", v)}
+    min={1000}
+    max={10000000}
+    step={1000}
+    prefix="$"
+  />
+</FormField>
 
-                <FormField id="rate" label="Annual Interest Rate" error={validationErrors.rate} helpText="Enter as percentage (e.g., enter 6 for 6%)" required>
-                  <NumericInput
-                    value={inputs.rate * 100}
-                    onChange={(v) => updateInput("rate", v / 100)}
-                    min={0}
-                    max={50}
-                    step={0.01}
-                    suffix="%"
-                  />
-                </FormField>
+<FormField
+  id="rate"
+  label="Annual Interest Rate"
+  error={validationErrors.rate}
+  helpText="Enter as percentage (e.g., enter 6 for 6%)"
+  required
+>
+  <NumericInput
+    value={inputs.rate * 100}
+    onChange={(v) => updateInput("rate", v / 100)}
+    min={0}
+    max={50}
+    step={0.01}
+    suffix="%"
+  />
+</FormField>
 
-                <FormField id="years" label="Loan Term" error={validationErrors.years} helpText="Length of loan in years" required>
-                  <NumericInput
-                    value={inputs.years}
-                    onChange={(v) => updateInput("years", Math.round(v))}
-                    min={1}
-                    max={50}
-                    step={1}
-                    suffix="years"
-                    hideSteppers
-                  />
-                </FormField>
+<FormField
+  id="years"
+  label="Loan Term"
+  error={validationErrors.years}
+  helpText="Length of loan in years"
+  required
+>
+  <NumericInput
+    value={inputs.years}
+    onChange={(v) => updateInput("years", Math.round(v))}
+    min={1}
+    max={50}
+    step={1}
+    suffix="years"
+    hideSteppers
+  />
+</FormField>
+
               </div>
 
               <div className="pt-4 border-t border-gray-200 mt-4">
