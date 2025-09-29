@@ -40,7 +40,6 @@ const HelpTooltip = ({ id, text }) => {
   );
 };
 
-
 // =========================
 // CFA Institute brand tokens
 // =========================
@@ -105,7 +104,6 @@ const FormField = ({ id, label, children, error, helpText, required = false }) =
   );
 };
 
-
 // Simple numeric input - let browser handle spinners naturally
 const NumericInput = ({
   value,
@@ -120,7 +118,7 @@ const NumericInput = ({
 }) => {
   const toStr = (val) =>
     val !== undefined && val !== null && !Number.isNaN(val)
-      ? Number(val).toFixed(step >= 1 ? 0 : 2)
+      ? Number(val).toFixed(step >= 1 ? 0 : step === 0.1 ? 1 : 2)
       : "";
 
   const [displayValue, setDisplayValue] = useState(toStr(value));
@@ -151,17 +149,16 @@ const NumericInput = ({
       const numericValue = parseFloat(e.target.value);
       if (!Number.isNaN(numericValue)) {
         const c = clamp(numericValue);
-        setDisplayValue(Number(c).toFixed(step >= 1 ? 0 : 2));
+        setDisplayValue(Number(c).toFixed(step >= 1 ? 0 : step === 0.1 ? 1 : 2));
         onChange(c);
       } else {
-        setDisplayValue(step >= 1 ? "0" : "0.00");
+        setDisplayValue(step >= 1 ? "0" : step === 0.1 ? "0.0" : "0.00");
         onChange(0);
       }
     },
     [onChange, clamp, step]
   );
 
-  // Use inline styles to control spinner visibility
   const inputStyles = {};
 
   return (
@@ -232,30 +229,31 @@ const buildMortgageSchedule = ({ principal = 800000, rate = 0.06, years = 30 }) 
     const schedule = [];
 
     for (let month = 1; month <= numPayments; month++) {
-      let interestPayment, principalPayment;
+      let interestPayment, principalAmortization;
 
       if (!rate || monthlyRate === 0) {
         interestPayment = 0;
-        principalPayment = monthlyPayment;
-        if (month === numPayments) principalPayment = remainingBalance;
+        principalAmortization = monthlyPayment;
+        if (month === numPayments) principalAmortization = remainingBalance;
       } else {
         interestPayment = remainingBalance * monthlyRate;
-        principalPayment = monthlyPayment - interestPayment;
+        principalAmortization = monthlyPayment - interestPayment;
         if (month === numPayments) {
-          principalPayment = remainingBalance;
-          interestPayment = monthlyPayment - principalPayment;
+          principalAmortization = remainingBalance;
+          interestPayment = monthlyPayment - principalAmortization;
         }
       }
 
-      remainingBalance = Math.max(0, remainingBalance - principalPayment);
+      remainingBalance = Math.max(0, remainingBalance - principalAmortization);
 
       schedule.push({
         month,
         year: Math.ceil(month / 12),
         interestPayment: Math.round(interestPayment * 100) / 100,
-        principalPayment: Math.round(principalPayment * 100) / 100,
-        totalPayment: Math.round((interestPayment + principalPayment) * 100) / 100,
+        principalAmortization: Math.round(principalAmortization * 100) / 100,
+        totalPayment: Math.round((interestPayment + principalAmortization) * 100) / 100,
         remainingBalance: Math.round(remainingBalance * 100) / 100,
+        monthLabel: month.toString(),
         yearLabel: Math.ceil(month / 12).toString()
       });
     }
@@ -311,12 +309,11 @@ export default function EnhancedMortgageCalculator() {
   // Force spinners to be visible by injecting CSS into document head
   useEffect(() => {
     const styleId = 'force-number-spinners';
-    if (document.getElementById(styleId)) return; // Don't add twice
+    if (document.getElementById(styleId)) return;
     
     const style = document.createElement('style');
     style.id = styleId;
     style.textContent = `
-      /* Force number input spinners to be visible - overrides framework CSS */
       input[type="number"]::-webkit-outer-spin-button,
       input[type="number"]::-webkit-inner-spin-button {
         -webkit-appearance: auto !important;
@@ -325,7 +322,6 @@ export default function EnhancedMortgageCalculator() {
         margin: 0 !important;
       }
       
-      /* Only hide spinners when explicitly requested with no-spinners class */
       input[type="number"].no-spinners::-webkit-outer-spin-button,
       input[type="number"].no-spinners::-webkit-inner-spin-button {
         -webkit-appearance: none !important;
@@ -352,7 +348,7 @@ export default function EnhancedMortgageCalculator() {
 
   const chartDataMonthly = useMemo(() => {
     if (!mortgage?.schedule?.length) return [];
-    return mortgage.schedule.map((p) => ({ ...p, monthLabel: `M${p.month}` }));
+    return mortgage.schedule;
   }, [mortgage]);
 
   const chartDataAnnual = useMemo(() => {
@@ -365,17 +361,17 @@ export default function EnhancedMortgageCalculator() {
           year: y,
           yearLabel: `${y}`,
           interestPayment: 0,
-          principalPayment: 0,
+          principalAmortization: 0,
           remainingBalance: p.remainingBalance
         };
       yearly[y].interestPayment += p.interestPayment;
-      yearly[y].principalPayment += p.principalPayment;
+      yearly[y].principalAmortization += p.principalAmortization;
       yearly[y].remainingBalance = p.remainingBalance;
     });
     return Object.values(yearly).map((y) => ({
       ...y,
       interestPayment: Math.round(y.interestPayment * 100) / 100,
-      principalPayment: Math.round(y.principalPayment * 100) / 100
+      principalAmortization: Math.round(y.principalAmortization * 100) / 100
     }));
   }, [mortgage]);
 
@@ -443,7 +439,7 @@ export default function EnhancedMortgageCalculator() {
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-          <div className="md:col-span-1 space-y-6">
+          <div className="md:col-span-1 space-y-6 order-3 md:order-1">
             <Card title="Payment Summary">
               {hasErrors ? (
                 <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
@@ -475,82 +471,9 @@ export default function EnhancedMortgageCalculator() {
                 </div>
               ) : null}
             </Card>
-
-            {mortgage && !hasErrors && (
-              <Card title="Mortgage Payment Formula">
-                <div className="space-y-4">
-                  <div className="text-center font-mono text-lg bg-gray-50 p-4 rounded-lg">
-                    <div className="flex items-center justify-center flex-wrap gap-2">
-                      <span className="font-bold px-2 py-1 rounded text-white text-base" style={{ backgroundColor: COLORS.cfa.dark }}>
-                        M
-                      </span>
-                      <span>=</span>
-                      <span className="font-bold px-2 py-1 rounded text-white text-base" style={{ backgroundColor: COLORS.semantic.neutral }}>
-                        P
-                      </span>
-                      <span>×</span>
-                      <div className="flex flex-col items-center">
-                        <div className="flex items-center gap-1 border-b-2 border-gray-400 pb-1">
-                          <span className="font-bold px-1 py-1 rounded text-white text-sm" style={{ backgroundColor: COLORS.cfa.primary }}>
-                            r
-                          </span>
-                          <span className="text-sm">(1+</span>
-                          <span className="font-bold px-1 py-1 rounded text-white text-sm" style={{ backgroundColor: COLORS.cfa.primary }}>
-                            r
-                          </span>
-                          <span className="text-sm">)<sup>n</sup></span>
-                        </div>
-                        <div className="flex items-center gap-1 pt-1">
-                          <span className="text-sm">(1+</span>
-                          <span className="font-bold px-1 py-1 rounded text-white text-sm" style={{ backgroundColor: COLORS.cfa.primary }}>
-                            r
-                          </span>
-                          <span className="text-sm">)<sup>n</sup> - 1</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-2 text-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="w-6 h-6 rounded text-white flex items-center justify-center font-bold text-sm" style={{ backgroundColor: COLORS.cfa.dark }}>
-                        M
-                      </span>
-                      <span>Monthly Payment = <strong>{formatCurrency(mortgage.monthlyPayment)}</strong></span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="w-6 h-6 rounded text-white flex items-center justify-center font-bold text-sm" style={{ backgroundColor: COLORS.semantic.neutral }}>
-                        P
-                      </span>
-                      <span>Principal = <strong>{formatCurrency(inputs.principal)}</strong></span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="w-6 h-6 rounded text-white flex items-center justify-center font-bold text-sm" style={{ backgroundColor: COLORS.cfa.primary }}>
-                        r
-                      </span>
-                      <span>Monthly Rate = <strong>{(inputs.rate / 12 * 100).toFixed(3)}%</strong></span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="w-6 h-6 rounded text-gray-700 border border-gray-400 flex items-center justify-center font-bold text-sm">
-                        n
-                      </span>
-                      <span>Number of Payments = <strong>{inputs.years * 12}</strong></span>
-                    </div>
-                  </div>
-
-                  {inputs.rate === 0 && (
-                    <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                      <p className={`${TYPOGRAPHY.caption} text-amber-800 text-center`}>
-                        <strong>Special Case:</strong> With 0% interest rate, Monthly Payment = Principal ÷ Number of Payments = {formatCurrency(inputs.principal)} ÷ {inputs.years * 12} = <strong>{formatCurrency(mortgage.monthlyPayment)}</strong>
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </Card>
-            )}
           </div>
 
-          <div className="md:col-span-3 space-y-6">
+          <div className="md:col-span-3 space-y-6 order-1 md:order-2">
             <Card title="Mortgage Cash Flows">
               {mortgage && chartData.length > 0 ? (
                 <div>
@@ -558,7 +481,7 @@ export default function EnhancedMortgageCalculator() {
                     <div className="flex flex-wrap gap-4 text-sm">
                       <div className="flex items-center gap-2">
                         <div className="w-4 h-4 rounded bg-green-500" />
-                        <span>Principal Payments</span>
+                        <span>Principal Amortization</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="w-4 h-4 rounded" style={{ backgroundColor: COLORS.cfa.primary }} />
@@ -578,7 +501,7 @@ export default function EnhancedMortgageCalculator() {
                         <tr>
                           <th scope="col">{view === "monthly" ? "Month" : "Year"}</th>
                           <th scope="col" className="text-right">Interest Payment</th>
-                          <th scope="col" className="text-right">Principal Payment</th>
+                          <th scope="col" className="text-right">Principal Amortization</th>
                           <th scope="col" className="text-right">Remaining Balance</th>
                         </tr>
                       </thead>
@@ -587,7 +510,7 @@ export default function EnhancedMortgageCalculator() {
                           <tr key={row.month || row.year}>
                             <th scope="row">{view === "monthly" ? `Month ${row.month}` : `Year ${row.year}`}</th>
                             <td className="text-right">${row.interestPayment.toFixed(2)}</td>
-                            <td className="text-right">${row.principalPayment.toFixed(2)}</td>
+                            <td className="text-right">${row.principalAmortization.toFixed(2)}</td>
                             <td className="text-right">${row.remainingBalance.toFixed(2)}</td>
                           </tr>
                         ))}
@@ -603,7 +526,7 @@ export default function EnhancedMortgageCalculator() {
                       <h3 id="chart-title">Mortgage Payment Composition Chart</h3>
                       <p id="chart-description">
                         Stacked bar chart showing the breakdown of {view === "monthly" ? "monthly" : "annual"} payments 
-                        between interest and principal. Early payments are mostly interest, with principal portion increasing over time.
+                        between interest and principal amortization. Early payments are mostly interest, with principal portion increasing over time.
                       </p>
                     </div>
                     <ResponsiveContainer width="100%" height="100%">
@@ -626,7 +549,7 @@ export default function EnhancedMortgageCalculator() {
                         <YAxis tick={{ fontSize: 12, fill: COLORS.chart.text }} tickFormatter={(v) => v >= 1000 ? `$${(v/1000).toFixed(1)}K` : `$${Math.round(v)}`} />
                         <Tooltip content={<CustomTooltip isMonthly={view === "monthly"} />} />
                         <Bar dataKey="interestPayment" name="Interest Payments" stackId="payment" fill={COLORS.cfa.primary} />
-                        <Bar dataKey="principalPayment" name="Principal Payments" stackId="payment" fill={COLORS.semantic.positive} />
+                        <Bar dataKey="principalAmortization" name="Principal Amortization" stackId="payment" fill={COLORS.semantic.positive} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -660,16 +583,16 @@ export default function EnhancedMortgageCalculator() {
                         </div>
                       </div>
                       <div aria-live="polite" className={`${TYPOGRAPHY.caption} text-gray-600`}>
-                        Showing M{monthRange.start}–M{monthRange.end}
+                        Showing months {monthRange.start}–{monthRange.end}
                       </div>
                     </div>
                   )}
 
                   <p className={`${TYPOGRAPHY.caption} mt-4 text-center`}>
                     {view === "monthly" ? (
-                      <>Chart shows monthly composition of each payment. {inputs.rate === 0 && "With 0% interest, all payments go toward principal."}</>
+                      <>Chart shows monthly composition of each payment. {inputs.rate === 0 && "With 0% interest, all payments go toward principal amortization."}</>
                     ) : (
-                      <>Chart shows annual totals (sum of 12 monthly payments each year). {inputs.rate === 0 && "With 0% interest, all payments go toward principal."}</>
+                      <>Chart shows annual totals (sum of 12 monthly payments each year). {inputs.rate === 0 && "With 0% interest, all payments go toward principal amortization."}</>
                     )}
                   </p>
                 </div>
@@ -683,57 +606,56 @@ export default function EnhancedMortgageCalculator() {
             <Card title="Mortgage Parameters">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <FormField
-  id="principal"
-  label="Loan Amount"
-  error={validationErrors.principal}
-  helpText="Total amount borrowed"
-  required
->
-  <NumericInput
-    value={inputs.principal}
-    onChange={(v) => updateInput("principal", v)}
-    min={1000}
-    max={10000000}
-    step={1000}
-    prefix="$"
-  />
-</FormField>
+                  id="principal"
+                  label="Loan Amount"
+                  error={validationErrors.principal}
+                  helpText="Total amount borrowed"
+                  required
+                >
+                  <NumericInput
+                    value={inputs.principal}
+                    onChange={(v) => updateInput("principal", v)}
+                    min={1000}
+                    max={10000000}
+                    step={1000}
+                    prefix="$"
+                  />
+                </FormField>
 
-<FormField
-  id="rate"
-  label="Annual Interest Rate"
-  error={validationErrors.rate}
-  helpText="Enter as percentage (e.g., enter 6 for 6%)"
-  required
->
-  <NumericInput
-    value={inputs.rate * 100}
-    onChange={(v) => updateInput("rate", v / 100)}
-    min={0}
-    max={50}
-    step={0.01}
-    suffix="%"
-  />
-</FormField>
+                <FormField
+                  id="rate"
+                  label="Annual Interest Rate"
+                  error={validationErrors.rate}
+                  helpText="Enter as percentage (e.g., enter 6 for 6%)"
+                  required
+                >
+                  <NumericInput
+                    value={inputs.rate * 100}
+                    onChange={(v) => updateInput("rate", v / 100)}
+                    min={0}
+                    max={50}
+                    step={0.1}
+                    suffix="%"
+                  />
+                </FormField>
 
-<FormField
-  id="years"
-  label="Loan Term"
-  error={validationErrors.years}
-  helpText="Length of loan in years"
-  required
->
-  <NumericInput
-    value={inputs.years}
-    onChange={(v) => updateInput("years", Math.round(v))}
-    min={1}
-    max={50}
-    step={1}
-    suffix="years"
-    hideSteppers
-  />
-</FormField>
-
+                <FormField
+                  id="years"
+                  label="Loan Term"
+                  error={validationErrors.years}
+                  helpText="Length of loan in years"
+                  required
+                >
+                  <NumericInput
+                    value={inputs.years}
+                    onChange={(v) => updateInput("years", Math.round(v))}
+                    min={1}
+                    max={50}
+                    step={1}
+                    suffix="years"
+                    hideSteppers
+                  />
+                </FormField>
               </div>
 
               <div className="pt-4 border-t border-gray-200 mt-4">
