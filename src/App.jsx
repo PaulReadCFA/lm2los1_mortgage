@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback, useEffect } from "react";
+import React, { useMemo, useState, useCallback } from "react";
 import {
   ResponsiveContainer,
   BarChart,
@@ -9,186 +9,84 @@ import {
   Tooltip
 } from "recharts";
 
-const HelpTooltip = ({ id, text }) => {
-  const [visible, setVisible] = useState(false);
+// CFA-branded color palette
+const COLORS = {
+  primary: "#4476ff",
+  dark: "#06005a",
+  darkAlt: "#38337b",
+  positive: "#6991ff",
+  negative: "#ea792d",
+  purple: "#7a46ff",
+  purpleAlt: "#50037f",
+  lightBlue: "#4476ff",
+  orange: "#ea792d",
+  darkText: "#06005a",
+  green: "#10b981",
+};
 
+function Card({ title, children, className = "" }) {
   return (
-    <span className="relative inline-block ml-2">
+    <div className={`bg-white rounded-2xl shadow-md p-5 border border-gray-100 ${className}`}>
+      <h2 className="font-serif text-xl text-slate-800 mb-3">{title}</h2>
+      <div className="font-sans text-sm text-black/80">{children}</div>
+    </div>
+  );
+}
+
+function InfoIcon({ children, id }) {
+  const [showTooltip, setShowTooltip] = useState(false);
+  
+  return (
+    <div className="relative inline-block ml-1">
       <button
         type="button"
-        className="w-4 h-4 rounded-full bg-gray-200 text-gray-700 text-xs font-bold 
-                   focus:outline-none focus:ring-2 focus:ring-blue-500"
-        aria-describedby={visible ? `${id}-help` : undefined}
+        className="w-4 h-4 rounded-full bg-gray-400 text-white text-xs font-bold hover:bg-gray-500 focus:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+        onMouseEnter={() => setShowTooltip(true)}
+        onMouseLeave={() => setShowTooltip(false)}
+        onFocus={() => setShowTooltip(true)}
+        onBlur={() => setShowTooltip(false)}
+        aria-describedby={`${id}-tooltip`}
         aria-label="More information"
-        onMouseEnter={() => setVisible(true)}
-        onMouseLeave={() => setVisible(false)}
-        onFocus={() => setVisible(true)}
-        onBlur={() => setVisible(false)}
       >
         ?
       </button>
-      {visible && (
-        <span
-          id={`${id}-help`}
+      
+      {showTooltip && (
+        <div
+          id={`${id}-tooltip`}
           role="tooltip"
-          className="absolute left-6 top-0 z-10 w-56 p-2 text-xs text-white bg-gray-800 rounded shadow-lg"
+          className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap z-10 max-w-xs"
         >
-          {text}
-        </span>
-      )}
-    </span>
-  );
-};
-
-// =========================
-// CFA Institute brand tokens
-// =========================
-const COLORS = {
-  cfa: { primary: "#4476FF", dark: "#06005A", light: "#E8F0FF" },
-  semantic: { positive: "#10B981", negative: "#EF4444", neutral: "#6B7280" },
-  chart: { grid: "#E5E7EB", text: "#374151", background: "#FFFFFF" }
-};
-
-const TYPOGRAPHY = {
-  heading: "font-serif text-slate-800",
-  body: "font-sans text-gray-700",
-  caption: "font-sans text-sm text-gray-600",
-  label: "font-sans text-sm font-medium text-gray-700"
-};
-
-// Default values for easy reset
-const DEFAULT_INPUTS = { principal: 800000, rate: 0.06, years: 30 };
-
-// =========================
-// Reusable UI
-// =========================
-const Card = ({ title, children, className = "" }) => (
-  <section className={`bg-white rounded-2xl shadow-lg border border-gray-200 ${className}`}>
-    {title && (
-      <header className="px-6 py-4 border-b border-gray-100">
-        <h2 className={`text-xl ${TYPOGRAPHY.heading}`}>{title}</h2>
-      </header>
-    )}
-    <div className="p-6">{children}</div>
-  </section>
-);
-
-const FormField = ({ id, label, children, error, helpText, required = false }) => {
-  const errorId = error ? `${id}-error` : undefined;
-  const describedBy = errorId ? errorId : undefined;
-
-  return (
-    <div className="space-y-1">
-      <label
-        htmlFor={id}
-        className={`block ${TYPOGRAPHY.label} flex items-center ${
-          required ? "after:content-['*'] after:text-red-500 after:ml-1" : ""
-        }`}
-      >
-        {label}
-        {helpText && <HelpTooltip id={id} text={helpText} />}
-      </label>
-
-      {React.cloneElement(children, {
-        id,
-        "aria-describedby": describedBy || undefined,
-        "aria-invalid": error ? "true" : "false"
-      })}
-
-      {error && (
-        <p id={errorId} className={`${TYPOGRAPHY.caption} text-red-600`} role="alert">
-          {error}
-        </p>
+          {children}
+          <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent border-t-gray-800"></div>
+        </div>
       )}
     </div>
   );
-};
+}
 
-// Simple numeric input - let browser handle spinners naturally
-const NumericInput = ({
-  value,
-  onChange = () => {},
-  min,
-  max,
-  step = 0.01,
-  prefix = "",
-  suffix = "",
-  placeholder = "0.00",
-  hideSteppers = false
-}) => {
-  const toStr = (val) =>
-    val !== undefined && val !== null && !Number.isNaN(val)
-      ? Number(val).toFixed(step >= 1 ? 0 : step === 0.1 ? 1 : 2)
-      : "";
-
-  const [displayValue, setDisplayValue] = useState(toStr(value));
-
-  useEffect(() => {
-    setDisplayValue(toStr(value));
-  }, [value, step]);
-
-  const clamp = useCallback(
-    (num) => Math.min(Math.max(num, min ?? -Infinity), max ?? Infinity),
-    [min, max]
-  );
-
-  const handleChange = useCallback(
-    (e) => {
-      const newValue = e.target.value;
-      setDisplayValue(newValue);
-      const numericValue = parseFloat(newValue);
-      if (!Number.isNaN(numericValue)) {
-        onChange(clamp(numericValue));
-      }
-    },
-    [onChange, clamp]
-  );
-
-  const handleBlur = useCallback(
-    (e) => {
-      const numericValue = parseFloat(e.target.value);
-      if (!Number.isNaN(numericValue)) {
-        const c = clamp(numericValue);
-        setDisplayValue(Number(c).toFixed(step >= 1 ? 0 : step === 0.1 ? 1 : 2));
-        onChange(c);
-      } else {
-        setDisplayValue(step >= 1 ? "0" : step === 0.1 ? "0.0" : "0.00");
-        onChange(0);
-      }
-    },
-    [onChange, clamp, step]
-  );
-
-  const inputStyles = {};
-
+function ValidationMessage({ errors }) {
+  if (!errors || Object.keys(errors).length === 0) return null;
+  
   return (
-    <div className="relative">
-      {prefix && (
-        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none">{prefix}</span>
-      )}
-      <input
-        type="number"
-        inputMode="decimal"
-        value={displayValue}
-        onChange={handleChange}
-        onBlur={handleBlur}
-        min={min}
-        max={max}
-        step={step}
-        placeholder={placeholder}
-        style={inputStyles}
-        className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${prefix ? "pl-8" : ""} ${suffix ? "pr-12" : ""} ${hideSteppers ? "no-spinners" : ""}`}
-      />
-      {suffix && (
-        <span className="absolute right-8 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none">{suffix}</span>
-      )}
+    <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg" role="alert">
+      <h3 className="text-red-800 font-semibold text-sm mb-2">Please correct the following:</h3>
+      <ul className="text-red-800 text-sm space-y-1">
+        {Object.entries(errors).map(([field, error]) => (
+          <li key={field}>• {error}</li>
+        ))}
+      </ul>
     </div>
   );
-};
+}
 
-// =========================
-// Core logic
-// =========================
+const formatCurrency = (amount) => new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 0
+}).format(amount || 0);
+
 const validateMortgageInputs = (inputs) => {
   const errors = {};
   if (!inputs.principal || inputs.principal <= 0) {
@@ -269,90 +167,55 @@ const buildMortgageSchedule = ({ principal = 800000, rate = 0.06, years = 30 }) 
   }
 };
 
-const CustomTooltip = ({ active, payload, isMonthly }) => {
-  if (active && payload && payload.length) {
-    const data = payload[0]?.payload;
+function ResultsSection({ mortgage, hasErrors, validationErrors }) {
+  if (hasErrors) {
     return (
-      <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
-        <p className={`${TYPOGRAPHY.body} font-medium mb-2`}>
-          {isMonthly ? `Month ${data?.month}` : `Year ${data?.year}`}
-        </p>
-        {payload.map((entry, i) => (
-          <p key={i} style={{ color: entry.color }} className={TYPOGRAPHY.caption}>
-            {`${entry.name}: $${Number(entry.value).toFixed(2)}`}
-          </p>
-        ))}
-        {data && (
-          <div className="mt-2 pt-2 border-t border-gray-200">
-            <p className={`${TYPOGRAPHY.caption} text-gray-600`}>
-              Remaining Balance: ${Number(data.remainingBalance).toFixed(2)}
-            </p>
-          </div>
-        )}
+      <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+        <h3 className="font-semibold text-sm text-red-800 mb-2">Please correct errors:</h3>
+        <ul className="space-y-1">
+          {Object.values(validationErrors).map((err, i) => (
+            <li key={i} className="text-xs text-red-700">• {err}</li>
+          ))}
+        </ul>
       </div>
     );
   }
-  return null;
-};
 
-// =========================
-// Main Component
-// =========================
-export default function EnhancedMortgageCalculator() {
-  const [inputs, setInputs] = useState(DEFAULT_INPUTS);
-  const [view, setView] = useState("monthly");
-  const [monthRange, setMonthRange] = useState({ start: 1, end: 120 });
+  if (!mortgage) return null;
 
-  const validationErrors = useMemo(() => validateMortgageInputs(inputs), [inputs]);
-  const hasErrors = Object.keys(validationErrors).length > 0;
+  return (
+    <div className="space-y-6">
+      {/* Monthly Payment */}
+      <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+        <div className="text-3xl font-serif text-blue-600 mb-2">{formatCurrency(mortgage.monthlyPayment)}</div>
+        <div className="text-sm text-gray-700">
+          <div><strong>Monthly Payment</strong></div>
+        </div>
+      </div>
 
-  // Force spinners to be visible by injecting CSS into document head
-  useEffect(() => {
-    const styleId = 'force-number-spinners';
-    if (document.getElementById(styleId)) return;
-    
-    const style = document.createElement('style');
-    style.id = styleId;
-    style.textContent = `
-      input[type="number"]::-webkit-outer-spin-button,
-      input[type="number"]::-webkit-inner-spin-button {
-        -webkit-appearance: auto !important;
-        opacity: 1 !important;
-        height: auto !important;
-        margin: 0 !important;
-      }
-      
-      input[type="number"].no-spinners::-webkit-outer-spin-button,
-      input[type="number"].no-spinners::-webkit-inner-spin-button {
-        -webkit-appearance: none !important;
-        height: 0 !important;
-        margin: 0 !important;
-      }
-      
-      input[type="number"].no-spinners {
-        -moz-appearance: textfield;
-      }
-    `;
-    document.head.appendChild(style);
-    
-    return () => {
-      const existing = document.getElementById(styleId);
-      if (existing) existing.remove();
-    };
-  }, []);
+      {/* Total Interest */}
+      <div className="p-4 rounded-lg border" style={{ backgroundColor: COLORS.primary + '20', borderColor: COLORS.primary }}>
+        <div className="text-3xl font-serif mb-2" style={{ color: COLORS.primary }}>{formatCurrency(mortgage.totalInterest)}</div>
+        <div className="text-sm text-gray-700">
+          <div><strong>Total Interest</strong></div>
+        </div>
+      </div>
 
-  const mortgage = useMemo(() => {
-    if (hasErrors) return null;
-    return buildMortgageSchedule(inputs);
-  }, [inputs, hasErrors]);
+      {/* Total Paid */}
+      <div className="p-4 rounded-lg border" style={{ backgroundColor: COLORS.purple + '20', borderColor: COLORS.purple }}>
+        <div className="text-3xl font-serif mb-2" style={{ color: COLORS.purple }}>{formatCurrency(mortgage.totalPaid)}</div>
+        <div className="text-sm text-gray-700">
+          <div><strong>Total Paid</strong></div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-  const chartDataMonthly = useMemo(() => {
-    if (!mortgage?.schedule?.length) return [];
-    return mortgage.schedule;
-  }, [mortgage]);
+function MortgageChart({ mortgage, view }) {
+  if (!mortgage || !mortgage.schedule.length) return null;
 
   const chartDataAnnual = useMemo(() => {
-    if (!mortgage?.schedule?.length) return [];
     const yearly = {};
     mortgage.schedule.forEach((p) => {
       const y = p.year;
@@ -375,305 +238,237 @@ export default function EnhancedMortgageCalculator() {
     }));
   }, [mortgage]);
 
-  const chartData = view === "monthly" ? chartDataMonthly : chartDataAnnual;
-  
-  const visibleChartData = useMemo(() => {
-    if (view === "annual") return chartData;
-    const start = Math.max(0, monthRange.start - 1);
-    const end = Math.min(chartData.length - 1, monthRange.end - 1);
-    return chartData.slice(start, end + 1);
-  }, [chartData, monthRange, view]);
+  const chartData = view === "monthly" ? mortgage.schedule : chartDataAnnual;
+
+  const CustomTooltip = ({ active, payload }) => {
+    if (active && payload && payload.length) {
+      const data = payload[0]?.payload;
+      return (
+        <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
+          <p className="font-medium mb-2 text-sm">
+            {view === "monthly" ? `Month ${data?.month}` : `Year ${data?.year}`}
+          </p>
+          {payload.map((entry, i) => (
+            <p key={i} style={{ color: entry.color }} className="text-xs">
+              {`${entry.name}: ${formatCurrency(entry.value)}`}
+            </p>
+          ))}
+          {data && (
+            <div className="mt-2 pt-2 border-t border-gray-200">
+              <p className="text-xs text-gray-600">
+                Remaining: {formatCurrency(data.remainingBalance)}
+              </p>
+            </div>
+          )}
+        </div>
+      );
+    }
+    return null;
+  };
+
+  return (
+    <>
+      {/* Legend */}
+      <div className="flex flex-wrap gap-4 text-sm mb-4">
+        <span className="flex items-center">
+          <span className="w-4 h-4 mr-2 rounded" style={{backgroundColor: COLORS.green}}></span>
+          Principal Amortization
+        </span>
+        <span className="flex items-center">
+          <span className="w-4 h-4 mr-2 rounded" style={{backgroundColor: COLORS.primary}}></span>
+          Interest Payments
+        </span>
+      </div>
+
+      {/* Chart */}
+      <div className="h-96" role="img" aria-labelledby="chart-title" aria-describedby="chart-description">
+        <div className="sr-only">
+          <h3 id="chart-title">Mortgage Payment Composition Chart</h3>
+          <p id="chart-description">
+            Stacked bar chart showing breakdown of {view === "monthly" ? "monthly" : "annual"} payments between interest and principal.
+          </p>
+        </div>
+
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart 
+            data={chartData} 
+            margin={{ top: 20, right: 54, left: 20, bottom: 60 }}
+            barCategoryGap="5%"
+          >
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis
+              dataKey={view === "monthly" ? "monthLabel" : "yearLabel"}
+              label={{ value: view === "monthly" ? "Months" : "Years", position: "bottom", offset: 24 }}
+              interval={view === "monthly" ? "preserveStartEnd" : 0}
+              height={40}
+            />
+            <YAxis tickFormatter={(v) => v >= 1000 ? `$${(v/1000).toFixed(1)}K` : `$${Math.round(v)}`} />
+            <Tooltip content={<CustomTooltip />} />
+            <Bar dataKey="interestPayment" name="Interest" stackId="payment" fill={COLORS.primary} />
+            <Bar dataKey="principalAmortization" name="Principal" stackId="payment" fill={COLORS.green} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Educational note */}
+      <div className="mt-4 p-3 bg-gray-50 rounded-lg text-sm text-gray-700">
+        <strong>Mortgage Amortization:</strong> Early payments are mostly interest; principal portion increases over time as balance decreases.
+      </div>
+    </>
+  );
+}
+
+export default function App() {
+  const [inputs, setInputs] = useState({ principal: 800000, rate: 0.06, years: 30 });
+  const [view, setView] = useState("annual");
+
+  const validationErrors = useMemo(() => validateMortgageInputs(inputs), [inputs]);
+  const hasErrors = Object.keys(validationErrors).length > 0;
+
+  const mortgage = useMemo(() => {
+    if (hasErrors) return null;
+    return buildMortgageSchedule(inputs);
+  }, [inputs, hasErrors]);
 
   const updateInput = useCallback((field, value) => {
     setInputs((prev) => ({ ...prev, [field]: value }));
   }, []);
 
-  const resetToDefaults = useCallback(() => {
-    setInputs(DEFAULT_INPUTS);
-    setView("monthly");
-    setMonthRange({ start: 1, end: 120 });
-  }, []);
-
-  useEffect(() => {
-    const maxMonth = Math.max(1, chartDataMonthly.length);
-    setMonthRange((r) => ({
-      start: Math.min(r.start, maxMonth),
-      end: Math.min(r.end, maxMonth)
-    }));
-  }, [chartDataMonthly.length]);
-
-  const getXAxisInterval = useCallback((dataLength) => {
-    if (dataLength <= 12) return 0;
-    const targetTicks = 8;
-    const interval = Math.ceil(dataLength / targetTicks) - 1;
-    return Math.max(0, interval);
-  }, []);
-
-  const setStartMonth = useCallback((m) => {
-    const maxMonth = Math.max(1, chartDataMonthly.length);
-    const clamped = Math.max(1, Math.min(m || 1, maxMonth));
-    setMonthRange((r) => ({
-      start: Math.min(clamped, r.end),
-      end: r.end
-    }));
-  }, [chartDataMonthly.length]);
-
-  const setEndMonth = useCallback((m) => {
-    const maxMonth = Math.max(1, chartDataMonthly.length);
-    const clamped = Math.max(1, Math.min(m || 1, maxMonth));
-    setMonthRange((r) => ({
-      start: r.start,
-      end: Math.max(clamped, r.start)
-    }));
-  }, [chartDataMonthly.length]);
-
-  const formatCurrency = (amount) =>
-    new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(amount || 0);
-
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-          <div className="md:col-span-1 space-y-6 order-3 md:order-1">
-            <Card title="Payment Summary">
-              {hasErrors ? (
-                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                  <h3 className={`font-semibold ${TYPOGRAPHY.body} text-red-800 mb-2`}>Please correct the following errors:</h3>
-                  <ul className="space-y-1">
-                    {Object.values(validationErrors).map((err, i) => (
-                      <li key={i} className={`${TYPOGRAPHY.caption} text-red-700`}>• {err}</li>
-                    ))}
-                  </ul>
-                </div>
-              ) : mortgage?.error ? (
-                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                  <p className={`${TYPOGRAPHY.body} text-red-800`}>{mortgage.error}</p>
-                </div>
-              ) : mortgage ? (
-                <div className="space-y-4">
-                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg">
-                    <div className="text-2xl font-bold mb-1" style={{ color: COLORS.cfa.dark }}>{formatCurrency(mortgage.monthlyPayment)}</div>
-                    <p className={`${TYPOGRAPHY.body}`} style={{ color: COLORS.cfa.dark }}>Monthly Payment</p>
-                  </div>
-                  <div className="p-4 border rounded-lg" style={{ backgroundColor: '#E8F0FF', borderColor: COLORS.cfa.primary }}>
-                    <div className="text-2xl font-bold mb-1" style={{ color: COLORS.cfa.primary }}>{formatCurrency(mortgage.totalInterest)}</div>
-                    <p className={`${TYPOGRAPHY.body}`} style={{ color: COLORS.cfa.primary }}>Total Interest</p>
-                  </div>
-                  <div className="p-4 bg-purple-50 border border-purple-500 rounded-lg">
-                    <div className="text-2xl font-bold text-purple-600 mb-1">{formatCurrency(mortgage.totalPaid)}</div>
-                    <p className={`${TYPOGRAPHY.body} text-purple-800`}>Total Paid</p>
-                  </div>
-                </div>
-              ) : null}
-            </Card>
-          </div>
+    <div className="min-h-screen bg-gray-50 p-6 font-sans">
+      <main className="max-w-7xl mx-auto space-y-6">
 
-          <div className="md:col-span-3 space-y-6 order-1 md:order-2">
+        {/* RESULTS AND CHART */}
+        <>
+          {/* MOBILE */}
+          <div className="lg:hidden space-y-6">
+            <Card title="Results">
+              <ResultsSection mortgage={mortgage} hasErrors={hasErrors} validationErrors={validationErrors} />
+            </Card>
             <Card title="Mortgage Cash Flows">
-              {mortgage && chartData.length > 0 ? (
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex flex-wrap gap-4 text-sm">
-                      <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 rounded bg-green-500" />
-                        <span>Principal Amortization</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 rounded" style={{ backgroundColor: COLORS.cfa.primary }} />
-                        <span>Interest Payments</span>
-                      </div>
-                    </div>
-                    <div className="inline-flex rounded-lg overflow-hidden border border-gray-200">
-                      <button className={`px-3 py-1 ${view === "monthly" ? "bg-blue-50 text-blue-600" : "bg-white"}`} onClick={() => setView("monthly")} aria-pressed={view === "monthly"}>Monthly</button>
-                      <button className={`px-3 py-1 border-l border-gray-200 ${view === "annual" ? "bg-blue-50 text-blue-600" : "bg-white"}`} onClick={() => setView("annual")} aria-pressed={view === "annual"}>Annual</button>
-                    </div>
-                  </div>
-
-                  <div className="sr-only">
-                    <table>
-                      <caption>Mortgage payment breakdown by {view === "monthly" ? "month" : "year"} showing first 10 periods</caption>
-                      <thead>
-                        <tr>
-                          <th scope="col">{view === "monthly" ? "Month" : "Year"}</th>
-                          <th scope="col" className="text-right">Interest Payment</th>
-                          <th scope="col" className="text-right">Principal Amortization</th>
-                          <th scope="col" className="text-right">Remaining Balance</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {visibleChartData.slice(0, 10).map(row => (
-                          <tr key={row.month || row.year}>
-                            <th scope="row">{view === "monthly" ? `Month ${row.month}` : `Year ${row.year}`}</th>
-                            <td className="text-right">${row.interestPayment.toFixed(2)}</td>
-                            <td className="text-right">${row.principalAmortization.toFixed(2)}</td>
-                            <td className="text-right">${row.remainingBalance.toFixed(2)}</td>
-                          </tr>
-                        ))}
-                        {visibleChartData.length > 10 && (
-                          <tr><td colSpan="4" className="text-center">... and {visibleChartData.length - 10} more {view === "monthly" ? "months" : "years"}</td></tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <div className="h-96 w-full" role="img" aria-labelledby="chart-title" aria-describedby="chart-description">
-                    <div className="sr-only">
-                      <h3 id="chart-title">Mortgage Payment Composition Chart</h3>
-                      <p id="chart-description">
-                        Stacked bar chart showing the breakdown of {view === "monthly" ? "monthly" : "annual"} payments 
-                        between interest and principal amortization. Early payments are mostly interest, with principal portion increasing over time.
-                      </p>
-                    </div>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart 
-                        data={visibleChartData} 
-                        margin={{ top: 20, right: 54, left: 20, bottom: 60 }}
-                        barCategoryGap="5%"
-                        maxBarSize={60}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" stroke={COLORS.chart.grid} />
-                        <XAxis
-                          dataKey={view === "monthly" ? "monthLabel" : "yearLabel"}
-                          tick={{ fontSize: 12, fill: COLORS.chart.text }}
-                          label={{ value: view === "monthly" ? "Months" : "Years", position: "bottom", offset: 24 }}
-                          interval={view === "monthly" ? getXAxisInterval(visibleChartData.length) : 0}
-                          height={40}
-                          padding={{ left: 0, right: 0 }}
-                          tickMargin={8}
-                        />
-                        <YAxis tick={{ fontSize: 12, fill: COLORS.chart.text }} tickFormatter={(v) => v >= 1000 ? `$${(v/1000).toFixed(1)}K` : `$${Math.round(v)}`} />
-                        <Tooltip content={<CustomTooltip isMonthly={view === "monthly"} />} />
-                        <Bar dataKey="interestPayment" name="Interest Payments" stackId="payment" fill={COLORS.cfa.primary} />
-                        <Bar dataKey="principalAmortization" name="Principal Amortization" stackId="payment" fill={COLORS.semantic.positive} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-
-                  {view === "monthly" && (
-                    <div role="group" aria-label="Select visible month range" className="mt-3 flex flex-wrap items-end gap-4">
-                      <div className="flex items-center gap-2">
-                        <label htmlFor="start-month" className={`${TYPOGRAPHY.caption}`}>Start month</label>
-                        <div className="w-20">
-                          <NumericInput
-                            value={monthRange.start}
-                            onChange={setStartMonth}
-                            min={1}
-                            max={Math.max(1, chartDataMonthly.length)}
-                            step={1}
-                            placeholder="1"
-                          />
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <label htmlFor="end-month" className={`${TYPOGRAPHY.caption}`}>End month</label>
-                        <div className="w-20">
-                          <NumericInput
-                            value={monthRange.end}
-                            onChange={setEndMonth}
-                            min={1}
-                            max={Math.max(1, chartDataMonthly.length)}
-                            step={1}
-                            placeholder="120"
-                          />
-                        </div>
-                      </div>
-                      <div aria-live="polite" className={`${TYPOGRAPHY.caption} text-gray-600`}>
-                        Showing months {monthRange.start}–{monthRange.end}
-                      </div>
-                    </div>
-                  )}
-
-                  <p className={`${TYPOGRAPHY.caption} mt-4 text-center`}>
-                    {view === "monthly" ? (
-                      <>Chart shows monthly composition of each payment. {inputs.rate === 0 && "With 0% interest, all payments go toward principal amortization."}</>
-                    ) : (
-                      <>Chart shows annual totals (sum of 12 monthly payments each year). {inputs.rate === 0 && "With 0% interest, all payments go toward principal amortization."}</>
-                    )}
-                  </p>
+              {/* View Toggle */}
+              <div className="flex justify-end mb-4">
+                <div className="inline-flex rounded-lg overflow-hidden border border-gray-200">
+                  <button 
+                    className={`px-3 py-1 text-sm ${view === "monthly" ? "bg-blue-50 text-blue-600 font-semibold" : "bg-white"}`} 
+                    onClick={() => setView("monthly")}
+                  >
+                    Monthly
+                  </button>
+                  <button 
+                    className={`px-3 py-1 text-sm border-l ${view === "annual" ? "bg-blue-50 text-blue-600 font-semibold" : "bg-white"}`} 
+                    onClick={() => setView("annual")}
+                  >
+                    Annual
+                  </button>
                 </div>
-              ) : (
-                <div className="h-96 flex items-center justify-center bg-gray-50 rounded-lg">
-                  <p className={`${TYPOGRAPHY.body} text-gray-500`}>Complete the inputs above to see amortization schedule</p>
-                </div>
-              )}
-            </Card>
-
-            <Card title="Mortgage Parameters">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <FormField
-                  id="principal"
-                  label="Loan Amount"
-                  error={validationErrors.principal}
-                  helpText="Total amount borrowed"
-                  required
-                >
-                  <NumericInput
-                    value={inputs.principal}
-                    onChange={(v) => updateInput("principal", v)}
-                    min={1000}
-                    max={10000000}
-                    step={1000}
-                    prefix="$"
-                  />
-                </FormField>
-
-                <FormField
-                  id="rate"
-                  label="Annual Interest Rate"
-                  error={validationErrors.rate}
-                  helpText="Enter as percentage (e.g., enter 6 for 6%)"
-                  required
-                >
-                  <NumericInput
-                    value={inputs.rate * 100}
-                    onChange={(v) => updateInput("rate", v / 100)}
-                    min={0}
-                    max={50}
-                    step={0.1}
-                    suffix="%"
-                  />
-                </FormField>
-
-                <FormField
-                  id="years"
-                  label="Loan Term"
-                  error={validationErrors.years}
-                  helpText="Length of loan in years"
-                  required
-                >
-                  <NumericInput
-                    value={inputs.years}
-                    onChange={(v) => updateInput("years", Math.round(v))}
-                    min={1}
-                    max={50}
-                    step={1}
-                    suffix="years"
-                    hideSteppers
-                  />
-                </FormField>
               </div>
-
-              <div className="pt-4 border-t border-gray-200 mt-4">
-                <button
-                  onClick={resetToDefaults}
-                  className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 focus:bg-gray-200 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
-                  aria-describedby="reset-help"
-                >
-                  Reset to Defaults
-                </button>
-                <p id="reset-help" className={`${TYPOGRAPHY.caption} text-gray-500 mt-1`}>
-                  Resets to: $800K loan, 6% rate, 30 years
-                </p>
-              </div>
+              <MortgageChart mortgage={mortgage} view={view} />
             </Card>
           </div>
-        </div>
-      </div>
+
+          {/* DESKTOP */}
+          <div className="hidden lg:grid lg:grid-cols-5 gap-6">
+            <div className="lg:col-span-1">
+              <Card title="Results">
+                <ResultsSection mortgage={mortgage} hasErrors={hasErrors} validationErrors={validationErrors} />
+              </Card>
+            </div>
+            <div className="lg:col-span-4">
+              <Card title="Mortgage Cash Flows">
+                {/* View Toggle */}
+                <div className="flex justify-end mb-4">
+                  <div className="inline-flex rounded-lg overflow-hidden border border-gray-200">
+                    <button 
+                      className={`px-3 py-1 text-sm ${view === "monthly" ? "bg-blue-50 text-blue-600 font-semibold" : "bg-white"}`} 
+                      onClick={() => setView("monthly")}
+                    >
+                      Monthly
+                    </button>
+                    <button 
+                      className={`px-3 py-1 text-sm border-l ${view === "annual" ? "bg-blue-50 text-blue-600 font-semibold" : "bg-white"}`} 
+                      onClick={() => setView("annual")}
+                    >
+                      Annual
+                    </button>
+                  </div>
+                </div>
+                <MortgageChart mortgage={mortgage} view={view} />
+              </Card>
+            </div>
+          </div>
+        </>
+
+        {/* INPUTS */}
+        <Card title="Mortgage Calculator">
+          <div className="flex flex-wrap items-end gap-x-6 gap-y-4">
+            
+            <div className="flex items-center gap-2">
+              <label htmlFor="principal" className="font-medium text-gray-700 whitespace-nowrap flex items-center text-sm">
+                Loan Amount
+                <span className="text-red-500 ml-1">*</span>
+                <InfoIcon id="principal">Total amount borrowed</InfoIcon>
+              </label>
+              <div className="w-32">
+                <input
+                  id="principal"
+                  type="number"
+                  step="1000"
+                  value={inputs.principal}
+                  onChange={(e) => updateInput('principal', +e.target.value)}
+                  className={`block w-full rounded-md shadow-sm px-2 py-2 text-sm ${
+                    validationErrors.principal ? 'border-red-300' : 'border-gray-300'
+                  } focus:border-blue-500 focus:ring-blue-500`}
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <label htmlFor="rate" className="font-medium text-gray-700 whitespace-nowrap flex items-center text-sm">
+                Annual Rate (%)
+                <span className="text-red-500 ml-1">*</span>
+                <InfoIcon id="rate">Annual interest rate</InfoIcon>
+              </label>
+              <div className="w-24">
+                <input
+                  id="rate"
+                  type="number"
+                  step="0.1"
+                  value={inputs.rate * 100}
+                  onChange={(e) => updateInput('rate', +e.target.value / 100)}
+                  className={`block w-full rounded-md shadow-sm px-2 py-2 text-sm ${
+                    validationErrors.rate ? 'border-red-300' : 'border-gray-300'
+                  } focus:border-blue-500 focus:ring-blue-500`}
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <label htmlFor="years" className="font-medium text-gray-700 whitespace-nowrap flex items-center text-sm">
+                Loan Term (years)
+                <span className="text-red-500 ml-1">*</span>
+                <InfoIcon id="years">Length of loan</InfoIcon>
+              </label>
+              <div className="w-24">
+                <input
+                  id="years"
+                  type="number"
+                  step="1"
+                  value={inputs.years}
+                  onChange={(e) => updateInput('years', Math.round(+e.target.value))}
+                  className={`block w-full rounded-md shadow-sm px-2 py-2 text-sm ${
+                    validationErrors.years ? 'border-red-300' : 'border-gray-300'
+                  } focus:border-blue-500 focus:ring-blue-500`}
+                />
+              </div>
+            </div>
+
+          </div>
+          
+          <ValidationMessage errors={validationErrors} />
+        </Card>
+
+      </main>
     </div>
   );
 }
